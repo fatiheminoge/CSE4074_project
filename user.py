@@ -3,13 +3,13 @@ import sys
 import threading
 
 class User:
-    def __init__(self, name, password, ipaddr, last_active = 0,port = None, status = False):
+    def __init__(self, name, password,  client_address, last_active = 0,port = None, status = False):
         self.name = name
         self.password = password
-        self.ipaddr = ipaddr
         self.last_active = last_active
         self.port = port
         self.status = status
+        self.client_address = client_address
     
     def active(self):
         now = datetime.now()

@@ -25,3 +25,10 @@ def send(msg, header_message):
 dictionary = {'username': 'zeynep', 'password': '123'}
 send(dictionary, 'REGISTER')
 
+send(dictionary, 'LOGOUT')
+
+dictionary = {'username': 'zeynep', 'password': '12'}
+send(dictionary, 'LOGIN')
+
+dictionary = {'username': 'zeynep', 'password': '123'}
+send(dictionary, 'LOGIN')

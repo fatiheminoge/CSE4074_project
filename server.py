@@ -1,7 +1,6 @@
 import socket
 import threading
 import pickle
-from tcp_socket import TCP_Socket
 from udp_socket import UDP_Socket
 from util import *
 from user import User
@@ -32,15 +31,33 @@ def register(packet_data, client_socket, client_address):
             clients.append(user)
             client_socket.send(b'The registration is complete.')
         else:
-            client_socket.send(b'This username has already used.')
+            client_socket.send(b'This username is already used.')
 
 
-def login(packet_data, client_socket,client_address):
-    pass
+def login(packet_data, client_socket, client_address):
+    username = packet_data['username']
+    password = packet_data['password']
+    user = check_user(clients, username)
+    if (user is not None) and (check_password(user, password)):
+        with threading.Lock():
+            user.status = True
+        client_socket.send(b'Connected to chatroom')
+    elif user is None:
+        client_socket.send(b'Invalid username. Please register first')
+    else:
+        client_socket.send(b'Invalid password. Please try again')
 
 
-def logout(packet_data, client_socket,client_address):
-    pass
+def logout(packet_data, client_socket, client_address):
+    user = check_user_by_client_address(clients, client_address)
+    with threading.Lock():
+        if user is not None:
+            user.status = False
+            client_socket.send(b'Logout')
+            client_socket.close()
+
+
+
 
 
 def receive_packet(client_socket, client_address):
@@ -62,7 +79,6 @@ def receive_packet(client_socket, client_address):
             packet_header = packet_header.decode('utf-8').rstrip(' ')
             if packet_header not in HEADERS:
                 client_socket.send(b'Invalid header. Closing connection!')
-                connected = False
                 client_socket.close()
 
             packet_length = client_socket.recv(HEADER_LENGTH)
@@ -75,13 +91,15 @@ def receive_packet(client_socket, client_address):
                 register(packet_data, client_socket, client_address)
             elif packet_header == 'LOGIN':
                 login(packet_data, client_socket, client_address)
-            elif packet_header == 'LOGOUT':
+
+            elif packet_header == 'LOGOUT' and check_user_by_client_address(clients, client_address):
                 logout(packet_data, client_socket, client_address)
+
             else:
                 pass
 
         except:
-            return False
+            pass
 
 
 # listen on the tcp socket
@@ -102,7 +120,7 @@ def listen_udp():
         header = data.decode('utf-8')
 
         header_method = getattr(udp_socket, header.lower())
-        user: User = check_user_fromip(udp_socket.clients, client_address)
+        user: User = check_user_by_client_address(udp_socket.clients, client_address)
         active_thread = threading.Thread(target=user.active)
         active_thread.start()
 
