@@ -50,11 +50,11 @@ def register(packet_data, client_socket, client_address):
             client_socket.send(b'This username is already used.')
 
 
-def login(packet_data, client_socket, client_address):
+def login(packet_data, client_socket):
     """
     login to chatroom
     Args:
-     - packet_data, client_socket, client_address
+     - packet_data, client_socket
     
     """
     username = packet_data['username']
@@ -71,12 +71,12 @@ def login(packet_data, client_socket, client_address):
             client_socket.send(b'Invalid password. Please try again')
 
 
-def logout(packet_data, client_socket, client_address):
+def logout(client_socket, client_address):
     """
     send a logout packet to the client
     Args:
-     - packet_data, client_socket, client_address
-    
+     -  client_socket, client_address
+
     """
     user = check_user_by_client_address(clients, client_address)
     with lock:
@@ -85,7 +85,14 @@ def logout(packet_data, client_socket, client_address):
             client_socket.send(b'Logout')
 
 
-def search(packet_data, client_socket, client_address):
+def search(packet_data, client_socket):
+    """
+     send the address of  requested client to the client
+     Args:
+      - packet_data, client_socket
+
+     """
+
     searched_username = packet_data['searched_username']
     user = check_user(clients, searched_username)
     with lock:
@@ -126,12 +133,12 @@ def receive_packet_tcp(client_socket, client_address):
             if packet_header == 'REGISTER':
                 register(packet_data, client_socket, client_address)
             elif packet_header == 'LOGIN':
-                login(packet_data, client_socket, client_address)
+                login(packet_data, client_socket)
             elif packet_header == 'LOGOUT' and user:
-                logout(packet_data, client_socket, client_address)
+                logout(client_socket, client_address)
 
             elif packet_header == 'SEARCH':
-                search(packet_data, client_socket, client_address)
+                search(packet_data, client_socket)
             else:
                 pass
 
