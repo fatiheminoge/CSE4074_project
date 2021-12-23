@@ -7,15 +7,18 @@ from udp_socket import UDP_Socket
 from util import *
 from user import User
 import errno
+
 lock = threading.Lock()
 
 UDP_PACKET_SIZE = 1024
 HEADER_LENGTH = 16
 HEADERS = ['REGISTER', 'LOGIN', 'LOGOUT', 'HELLO', 'CHATREQUEST', 'OK', 'REJECT',
-           'BUSY']  # We can use this by enumerating
+           'BUSY', 'SEARCH']  # We can use this by enumerating
 IP = socket.gethostbyname(socket.gethostname())
 TCP_PORT = 2424
 UDP_PORT = 4242
+
+FORMAT = 'utf-8'
 
 tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -40,7 +43,7 @@ def register(packet_data, client_socket, client_address):
 
     with lock:
         if not check_user(clients, username):
-            user = User(username, password, client_address, datetime.now(),status=True)
+            user = User(username, password, client_address, datetime.now(), status=True)
             clients.append(user)
             client_socket.send(b'The registration is complete.')
         else:
@@ -82,6 +85,17 @@ def logout(packet_data, client_socket, client_address):
             client_socket.send(b'Logout')
 
 
+def search(packet_data, client_socket, client_address):
+    searched_username = packet_data['searched_username']
+    user = check_user(clients, searched_username)
+    with lock:
+        if user is not None:
+            msg = str(user.client_address[0]) + ',' + str(+user.client_address[1])
+            client_socket.send(bytes(msg, FORMAT))
+        else:
+            client_socket.send(b'NOT FOUND')
+
+
 def receive_packet_tcp(client_socket, client_address):
     """
     Receive a packet from a client socket. Return header and data of the packet
@@ -107,17 +121,22 @@ def receive_packet_tcp(client_socket, client_address):
             packet_length = int(packet_length.decode('utf-8').strip())
             packet_data = client_socket.recv(packet_length)
             packet_data = pickle.loads(packet_data)
+
+            user = check_user_by_client_address(clients, client_address)
             if packet_header == 'REGISTER':
                 register(packet_data, client_socket, client_address)
             elif packet_header == 'LOGIN':
                 login(packet_data, client_socket, client_address)
-            elif packet_header == 'LOGOUT' and check_user_by_client_address(clients, client_address):
+            elif packet_header == 'LOGOUT' and user:
                 logout(packet_data, client_socket, client_address)
+
+            elif packet_header == 'SEARCH':
+                search(packet_data, client_socket, client_address)
             else:
                 pass
 
         except IOError as e:
-            if e.errno ==  errno.EBADF:
+            if e.errno == errno.EBADF:
                 print('Client socket is closed')
                 sys.exit()
 
@@ -131,6 +150,7 @@ def listen_tcp():
         # Create new thread for every incoming tcp connection 
         client_thread = threading.Thread(target=receive_packet_tcp, args=(client_socket, client_address))
         client_thread.start()
+
 
 def receive_packet_udp(udp_socket):
     """
@@ -148,14 +168,14 @@ def receive_packet_udp(udp_socket):
         udp_socket.send(b'Invalid header. Closing connection!')
         udp_socket.close()
 
-    packet_length = int(packet[HEADER_LENGTH: 2* HEADER_LENGTH].decode('utf-8').strip())
-    packet_data = packet[2*HEADER_LENGTH: 2*HEADER_LENGTH + packet_length]
+    packet_length = int(packet[HEADER_LENGTH: 2 * HEADER_LENGTH].decode('utf-8').strip())
+    packet_data = packet[2 * HEADER_LENGTH: 2 * HEADER_LENGTH + packet_length]
     packet_data = pickle.loads(packet_data)
 
     return packet_header, packet_data
 
 
-def active(user : User):
+def active(user: User):
     """
     Check if the user is not active for more than 200 seconds
     Args:
@@ -170,6 +190,7 @@ def active(user : User):
                 user.status = False
                 sys.exit()
 
+
 # listen for packets on a udp socket
 def listen_udp():
     udp_socket = UDP_Socket(clients, udp_sock)
@@ -179,7 +200,7 @@ def listen_udp():
         user: User = check_user(udp_socket.clients, username)
         make_thread = user is not None
         # if user doesnt have a thread that is already created make a thread for that user 
-        if make_thread and  not user.thread_active:
+        if make_thread and not user.thread_active:
             user_thread = threading.Thread(target=active, args=(user,))
             user_thread.start()
             make_thread = False
