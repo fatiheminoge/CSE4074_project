@@ -43,43 +43,48 @@ class Registry:
     def register(self, packet_data, client_socket: TCP_Socket):
         username = packet_data['username']
         password = packet_data['password']
-
+        chatport = packet_data['chatport']
         with Registry.lock:
             if not check_user(Registry.clients, username):
                 user = User(username, password, client_socket.address,
-                            datetime.now(), status=True)
+                            datetime.now(), status=True, chatport=int(chatport))
                 Registry.clients.append(user)
                 Registry.online_clients.append(user)
                 obj = {'user': user, 'request': 'REGISTER',
                        'msg': 'The registration is complete'}
                 client_socket.send('OK', obj)
             else:
-                obj = {'request': 'LOGIN', 'msg': 'This username is already used.'}
+                obj = {'request': 'REGISTER',
+                       'msg': 'This username is already used.'}
                 client_socket.send('REJECT', obj)
 
     def login(self, packet_data, client_socket: TCP_Socket):
         username = packet_data['username']
         password = packet_data['password']
+        chatport = packet_data['chatport']
         with Registry.lock:
             user = check_user(Registry.clients, username)
             if (user is not None) and (check_password(user, password)):
                 user.status = True
                 user.last_active = datetime.now()
                 user.address = client_socket.address
+                user.chatport = int(chatport)
                 Registry.online_clients.append(user)
                 obj = {'user': user, 'request': 'LOGIN',
                        'msg': 'Login successful'}
                 client_socket.send('OK', obj)
             elif user is None:
-                obj = {'request': 'LOGIN', 'msg': 'Invalid username. Please register first'}
+                obj = {'request': 'LOGIN',
+                       'msg': 'Invalid username. Please register first'}
                 client_socket.send(
                     'REJECT', obj)
             else:
-                obj = {'request': 'LOGIN', 'msg': 'Invalid password. Please try again'}
+                obj = {'request': 'LOGIN',
+                       'msg': 'Invalid password. Please try again'}
                 client_socket.send(
                     'REJECT', obj)
 
-    def logout(self, user, client_socket: TCP_Socket):            
+    def logout(self, user, client_socket: TCP_Socket):
         with Registry.lock:
             if user is not None:
                 user = check_user(Registry.online_clients, user.username)
@@ -88,7 +93,8 @@ class Registry:
                 obj = {'request': 'LOGOUT', 'msg': 'Logout successful'}
                 client_socket.send('OK', obj)
             else:
-                obj = {'request': 'LOGOUT', 'msg': 'User is currently not signed in'}
+                obj = {'request': 'LOGOUT',
+                       'msg': 'User is currently not signed in'}
                 client_socket.send('REJECT', obj)
 
     def search(self, packet_data, client_socket: TCP_Socket):
@@ -96,12 +102,24 @@ class Registry:
         with Registry.lock:
             user = check_user(Registry.online_clients, username)
             if user is not None:
-                obj = {'request' : 'SEARCH', 'msg' : 'User found', 'address' : user.address}
+                obj = {'request': 'SEARCH', 'msg': 'User found',
+                       'address': user.address}
                 client_socket.send('OK', obj)
             else:
-                obj = {'request': 'SEARCH', 'msg' : 'User not found'}
+                obj = {'request': 'SEARCH', 'msg': 'User not found'}
                 client_socket.send('NOTFOUND', obj)
-        
+
+    def chat_request(self, packet_data, client_socket: TCP_Socket):
+        username = packet_data['username']
+        with Registry.lock:
+            user = check_user(Registry.online_clients, username)
+            if user is not None:
+                obj = {'request': 'CHATREQUESTREG', 'msg': 'User found',
+                       'address': (user.address[0], user.chatport) }
+                client_socket.send('OK', obj)
+            else:
+                obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found'}
+                client_socket.send('NOTFOUND', obj)
 
     def listen_tcp(self):
         self.tcp_socket.socket.listen()
@@ -129,6 +147,8 @@ class Registry:
                     self.logout(packet_data, client_socket)
                 elif packet_header == 'SEARCH':
                     self.search(packet_data, client_socket)
+                elif packet_header == 'CHATREQUESTREG':
+                    self.chat_request(packet_data, client_socket)
                 else:
                     pass
 
@@ -144,7 +164,8 @@ class Registry:
             user: User = check_user(Registry.online_clients, username)
             # if user doesnt have a thread that is already created make a thread for that user
             if user and not user.thread_active:
-                user_thread = threading.Thread(target=user.active, args=(Registry.lock,))
+                user_thread = threading.Thread(
+                    target=user.active, args=(Registry.lock,))
                 user_thread.start()
                 user.thread_active = True
             # in each HELLO message reset the timer

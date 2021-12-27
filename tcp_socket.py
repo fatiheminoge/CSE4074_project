@@ -25,7 +25,7 @@ class TCP_Socket(Socket):
             message = self.create_message(
                 'INVALID', 'Invalid header. Closing connection!')
             self.socket.send(message)
-            self.socket.shutdown()
+            self.socket.close()
 
         packet_length = self.socket.recv(Socket.HEADER_LENGTH)
         packet_length = int(packet_length.decode('utf-8').strip())
