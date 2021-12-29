@@ -9,7 +9,7 @@ from udp_socket import UDP_Socket
 from user import User
 from util import *
 
-IP = socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname('localhost')
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
 UDP_ADDR = (IP, UDP_Socket.UDP_PORT)
 
@@ -172,6 +172,8 @@ class Registry:
             if user and packet_header == 'HELLO':
                 print(f'Received udp packet with the header {packet_header}')
                 user.last_active = datetime.now()
+
+            Registry.online_clients = [user for user in Registry.online_clients if user.status]
 
 
 def main():
