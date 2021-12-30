@@ -3,13 +3,12 @@ import time
 import socket
 import threading
 import sys
-
 from tcp_socket import TCP_Socket
 from udp_socket import UDP_Socket
 from sock import Socket
 from util import *
 
-port = input('port no: ')
+port_list = range(5000, 6000, 42)
 
 lock = threading.Lock()
 # getting local ip automatically
@@ -23,7 +22,14 @@ tcp_sock.connect(TCP_ADDR)
 
 chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 chat_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-chat_sock.bind((IP, int(port)))
+
+for port in port_list:
+    try:
+        chat_sock.bind((IP, port))
+        print(f'Client is listening on {(IP,port)}')
+        break
+    except:
+        print(f'port {port} is unavaliable trying another port')
 
 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -109,7 +115,7 @@ class Peer(Socket):
     def listen_udp(self):
         while True:
             try:
-                packet_header, packet_data = self.udp_socket.receive_message()
+                self.udp_socket.receive_message()
             except:
                 pass
 
@@ -124,19 +130,23 @@ class Peer(Socket):
         global resume
         resume = False
         if header == 'REGISTER' or header == 'LOGIN':
-            username = input('>username: ')
-            password = input('>password: ')
+            username = input('> username: ')
+            password = input('> password: ')
             obj = {'username': username, 'password': password, 'chatport': port}
-            self.tcp_socket.send(header, obj)
+            if not self.user:
+                self.tcp_socket.send(header, obj)
+            else:
+                print('You are currently logged in')
+                resume = True
         elif header == 'LOGOUT':
             self.tcp_socket.send('LOGOUT', self.user)
         elif header == 'SEARCH':
-            username = input('>username: ')
+            username = input('> username: ')
             obj = {'username': username}
             self.tcp_socket.send('SEARCH', obj)
         elif header == 'CHATREQUEST':
             username = input(
-                '>Enter the username of the user you want to chat: ')
+                '> Enter the username of the user you want to chat: ')
             obj = {'username': username}
             self.tcp_socket.send('CHATREQUESTREG', obj)
         else:
@@ -150,10 +160,22 @@ class PeerServer(Socket):
         tcp_thread.start()
 
     def chat(self):
-        while True:
+        global chat
+        global resume
+        while chat:
             message = input('> ')
+            if message == 'exit':
+                with lock:
+                    chat = False
+                    resume = True
+                obj = {'msg' : f'{self.user.username} is closed connection'}
+                self.chat_socket.send('REJECT', obj)
+                self.chat_socket = None
+                self.user.busy = False
+                break
             obj = {'msg': message}
-            self.chat_socket.send('CHAT', obj)
+            if self.chat_socket:
+                self.chat_socket.send('CHAT', obj)
 
     def send_chat_request(self):
         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -183,7 +205,6 @@ class PeerServer(Socket):
                             self.chat_socket.send('BUSY', obj)
                         else:
                             username = packet_data['username']
-                            sys.stdout.write('')
                             print(f'\nUser {username} wants to chat with you [Y/N]:', end=' ')
                             accept = input().lower()
                             while accept != 'y' and accept != 'n': 
@@ -211,15 +232,24 @@ class PeerServer(Socket):
                             chat = True
                         if packet_header == 'REJECT' or packet_header == 'BUSY':
                             resume = True
+                            chat = False
+                            self.chat_socket = None
+                            self.user.busy = False
+                            sys.exit()
 
                     elif packet_header == 'CHAT':
                         message = packet_data['msg']
-                        print(f'\n{self.user.peer_name}: {message}')
+                        print(f'{self.user.peer_name}: {message}')
+                        print('> ', end='')
+                        sys.stdout.flush()
 
             except IOError as e:
                 if e.errno == errno.EBADF:
-                    print('Client socket is closed')
-                    sys.exit()
+                    with lock:
+                        print('Client socket is closed')
+                        resume = True
+                        chat = False
+                        sys.exit()
 
 
             except Exception as e:
@@ -227,7 +257,6 @@ class PeerServer(Socket):
                 pass
 
     def listen_tcp(self):
-        print(self.tcp_socket.socket.getsockname())
         self.tcp_socket.socket.listen()
         while True:
             client_socket, client_address = self.tcp_socket.socket.accept()
@@ -247,7 +276,7 @@ def main():
     while loop:
         if resume:
             header = input(
-                '>Type operation that you want to make: ').upper()
+                '> Type operation that you want to make: ').upper()
             if header not in Socket.REQUEST_HEADERS:
                 print('Invalid operation')
                 continue
