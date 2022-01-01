@@ -1,5 +1,5 @@
+from sock import *
 from util import *
-from sock import Socket
 import socket
 import pickle
 

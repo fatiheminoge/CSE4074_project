@@ -3,10 +3,10 @@ import time
 import socket
 import threading
 import sys
-from tcp_socket import TCP_Socket
-from udp_socket import UDP_Socket
-from sock import Socket
-from util import *
+from common.tcp_socket import TCP_Socket
+from common.udp_socket import UDP_Socket
+from common.sock import Socket
+from common.util import *
 
 port_list = range(5000, 6000, 42)
 
@@ -102,14 +102,16 @@ class Peer(Socket):
                             resume = True   
                             print(message)
                         pass
-            except ConnectionResetError as e:
+            except OSError as e:
                 print('\nConnection to server is closed forcely')
                 global loop
-                loop = False
+                with lock:
+                    loop = False
                 sys.exit()
 
             except Exception as e:
-                resume = True
+                with lock:
+                    resume = True
                 print(e)
 
     def listen_udp(self):
