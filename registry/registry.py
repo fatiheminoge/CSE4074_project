@@ -6,12 +6,12 @@ import os
 from datetime import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 
-from common.tcp_socket import TCP_Socket
-from common.udp_socket import UDP_Socket
-from common.user import User
-from database import Database
-from common.util import *
 from common.error import *
+from common.util import *
+from database import Database
+from common.user import User
+from common.udp_socket import UDP_Socket
+from common.tcp_socket import TCP_Socket
 
 IP = socket.gethostbyname('localhost')
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
@@ -44,7 +44,7 @@ class Registry:
         udp_thread = threading.Thread(target=self.listen_udp)
         udp_thread.start()
         self.db.set_offline()
-        
+
     def register(self, packet_data, client_socket: TCP_Socket):
         username = packet_data['username']
         password = packet_data['password']
@@ -60,7 +60,7 @@ class Registry:
                 client_socket.send('OK', obj)
             except UserAlreadyExistsException:
                 obj = {'request': 'REGISTER',
-                       'msg': 'This username is already used.'}
+                       'msg': 'This username is already used.', 'username': user.username}
                 client_socket.send('REJECT', obj)
 
     def login(self, packet_data, client_socket: TCP_Socket):
@@ -70,23 +70,24 @@ class Registry:
         with Registry.lock:
             try:
                 user = User(**self.db.login(username, password,
-                                     client_socket.address, chatport))
+                                            client_socket.address, chatport))
                 if check_user(Registry.online_clients, user.username):
-                    obj = {'request' : 'LOGIN', 'msg': 'User is logged in another instance'}
+                    obj = {
+                        'request': 'LOGIN', 'msg': 'User is logged in another instance', 'username': username}
                     client_socket.send('REJECT', obj)
                 else:
                     Registry.online_clients.append(user)
                     obj = {'user': user, 'request': 'LOGIN',
-                        'msg': 'Login successful'}
+                           'msg': 'Login successful'}
                     client_socket.send('OK', obj)
             except WrongPasswordException:
                 obj = {'request': 'LOGIN',
-                       'msg': 'Invalid password. Please try again'}
+                       'msg': 'Invalid password. Please try again', 'username': username}
                 client_socket.send(
                     'REJECT', obj)
             except UserNotExistsException:
                 obj = {'request': 'LOGIN',
-                       'msg': 'Invalid username. Please register first'}
+                       'msg': 'Invalid username. Please register first', 'username': username}
                 client_socket.send(
                     'REJECT', obj)
 
@@ -96,7 +97,8 @@ class Registry:
                 if user is not None:
                     self.db.logout(user.username)
                     obj = {'request': 'LOGOUT', 'msg': 'Logout successful'}
-                    self.user.online = False
+                    user.online = False
+                    remove_user_by_username(Registry.online_clients, user.username)
                     client_socket.send('OK', obj)
                 else:
                     raise UserIsNotLoggedInException
@@ -111,11 +113,12 @@ class Registry:
             try:
                 address = self.db.chat_address(username)
                 obj = {'request': 'SEARCH', 'msg': 'User found',
-                       'address': address}
+                       'address': address, 'username': username}
                 client_socket.send('OK', obj)
 
             except UserNotExistsException:
-                obj = {'request': 'SEARCH', 'msg': 'User not found'}
+                obj = {'request': 'SEARCH',
+                       'msg': 'User not found', 'username': username}
                 client_socket.send('NOTFOUND', obj)
 
     def chat_request(self, packet_data, client_socket: TCP_Socket):
@@ -124,7 +127,7 @@ class Registry:
             try:
                 chat_address = self.db.chat_address(username)
                 obj = {'request': 'CHATREQUESTREG', 'msg': 'User found',
-                       'address': chat_address}
+                       'address': chat_address, 'username': username}
                 client_socket.send('OK', obj)
             except UserNotExistsException:
                 obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found'}
@@ -162,8 +165,7 @@ class Registry:
             except IOError as e:
                 if e.errno == errno.EBADF:
                     print('Client socket is closed')
-                    sys.exit()        
-
+                    sys.exit()
 
     def active(self, user):
         while True:
@@ -172,9 +174,9 @@ class Registry:
             if delta > 200:
                 with Registry.lock:
                     self.db.update_field(user.username, online=False)
-                    self.user.online = False
+                    user.online = False
+                    Registry.online_clients.remove(user)
                     sys.exit()
-
 
     def listen_udp(self):
         while True:
@@ -191,9 +193,6 @@ class Registry:
             if user and packet_header == 'HELLO':
                 print(f'Received udp packet with the header {packet_header}')
                 user.last_active = datetime.now()
-
-            Registry.online_clients = [
-                user for user in Registry.online_clients if user.online]
 
 
 def main():

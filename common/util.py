@@ -10,3 +10,9 @@ def check_user(users, username):
 
 def check_password(user, password: str):
     return user.password == password
+
+def remove_user_by_username(users, username):
+    for user in users:
+        if user.username == username:
+            users.remove(user)
+            break

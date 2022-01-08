@@ -1,15 +1,14 @@
+from common.error import *
 from configparser import ConfigParser
 from datetime import datetime
 from sqlalchemy import create_engine, inspect
-from sqlalchemy import Column, String, Date, Integer, Boolean, ARRAY, TIMESTAMP
+from sqlalchemy import Column, String, Date, Integer, Boolean, ARRAY, TIMESTAMP, and_
 from sqlalchemy.sql.schema import MetaData, Table
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.exc import IntegrityError
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
-
-from common.error import *
 
 
 def config(filename='registry/database.ini', section='postgresql'):
@@ -104,28 +103,30 @@ class Database:
         if user is not None:
             user = dict(user)
             if user['online'] == True:
-                update_statement = user_table.update().where(user_table.c.username == username).values(online=False)
+                update_statement = user_table.update().where(
+                    user_table.c.username == username).values(online=False)
                 self.conn.execute(update_statement)
             else:
                 raise UserIsNotLoggedInException
         else:
             raise UserNotExistsException
-            
-    
+
     def chat_address(self, username):
-        select_statement = user_table.select().where(user_table.c.username == username)
+        select_statement = user_table.select().where(
+            and_(user_table.c.username == username, user_table.c.online == True))
         user = self.conn.execute(select_statement).fetchone()
         if user is not None:
             user = dict(user)
             return (user['address'][0], int(user['chatport']))
         else:
             raise UserNotExistsException
-    
+
     def update_field(self, username, **args):
         select_statement = user_table.select().where(user_table.c.username == username)
         user = self.conn.execute(select_statement).fetchone()
         if user is not None:
-            update_statement = user_table.update().where(user_table.c.username == username).values(**args)
+            update_statement = user_table.update().where(
+                user_table.c.username == username).values(**args)
             self.conn.execute(update_statement)
 
     def search_all_peers(self):
@@ -134,12 +135,11 @@ class Database:
         ls = []
         for user in users:
             user = dict(user)
-            ls.append(user['address'][0], int(user['chatport'])) 
-        return ls    
-    
+            ls.append(user['address'][0], int(user['chatport']))
+        return ls
+
     def set_offline(self):
         update_statement = user_table.update().where(user_table.c.online == True).values(
             online=False
         )
         self.conn.execute(update_statement)
-    
