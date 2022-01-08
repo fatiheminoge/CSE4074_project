@@ -5,7 +5,7 @@ import threading
 import sys
 from common.tcp_socket import TCP_Socket
 from common.udp_socket import UDP_Socket
-from common.sock import Socket
+from common.our_sock import Socket
 from common.util import *
 
 port_list = range(5000, 6000, 42)
@@ -193,6 +193,7 @@ class PeerServer(Socket):
         resume = False
         while True:
             try:
+                
                 packet_header, packet_data = client_socket.receive_message()
                 with lock:
                     if packet_header == 'CHATREQUEST':

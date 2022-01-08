@@ -124,3 +124,16 @@ class Database:
         if user is not None:
             update_statement = user_table.update().where(user_table.c.username == username).values(**args)
             self.conn.execute(update_statement)
+
+    def search_all_peers(self):
+        select_statement = user_table.select().where(user_table.c.online == True)
+        users = self.conn.execute(select_statement).fetchall()
+        ls = []
+        for user in users:
+            user = dict(user)
+            ls.append(user['address'][0], int(user['chatport'])) 
+        return ls    
+
+
+
+

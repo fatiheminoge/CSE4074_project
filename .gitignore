@@ -2,3 +2,4 @@ tutorial
 .vscode
 __pycache__
 old
+.idea

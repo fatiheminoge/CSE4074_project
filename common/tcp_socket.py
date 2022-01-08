@@ -1,4 +1,4 @@
-from sock import *
+from common.our_sock import Socket
 from util import *
 import socket
 import pickle
