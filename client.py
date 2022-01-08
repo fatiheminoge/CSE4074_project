@@ -1,4 +1,5 @@
 import errno
+import re
 import time
 import socket
 import threading
@@ -137,19 +138,30 @@ class Peer(Socket):
             if not self.user:
                 username = input('> username: ')
                 password = input('> password: ')
+                logmessage = f'User: {username}, made {header} request'
                 obj = {'username': username, 'password': password, 'chatport': port}
                 if not self.user:
-                    self.tcp_socket.send(header, obj)
+                    self.tcp_socket.send(header, obj, logmessage)
             else:
                 print('You are currently logged in')
                 resume = True
         elif header == 'LOGOUT':
-            self.tcp_socket.send('LOGOUT', self.user)
+            if self.user:
+                logmessage = f'User: {self.user.username}, made {header} request'
+                self.tcp_socket.send('LOGOUT', self.user)
+            else:
+                print('You are not logged in')
+                resume = True
         elif header == 'SEARCH':
             if self.user:
                 username = input('> Enter the username of the user you want to search: ')
-                obj = {'username': username}
-                self.tcp_socket.send('SEARCH', obj)
+                if username != self.username:
+                    logmessage = f'User: {self.user.username}, made {header} request for the user: {username}'
+                    obj = {'username': username}
+                    self.tcp_socket.send('SEARCH', obj, logmessage)
+                else:
+                    print('> You can\'t search yourself')
+                    resume = True
             else:
                 print('> To search a user you should be signed in')
                 resume = True
@@ -157,8 +169,9 @@ class Peer(Socket):
             if self.user:
                 username = input(
                     '> Enter the username of the user you want to chat: ')
+                logmessage = f'User: {self.user.username}, made {header} request to registry to find the address of user: {username}'
                 obj = {'username': username}
-                self.tcp_socket.send('CHATREQUESTREG', obj)
+                self.tcp_socket.send('CHATREQUESTREG', obj, logmessage)
             else:
                 print('> To send a chat request you should be signed in')
                 resume = True

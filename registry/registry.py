@@ -71,10 +71,14 @@ class Registry:
             try:
                 user = User(**self.db.login(username, password,
                                      client_socket.address, chatport))
-                Registry.online_clients.append(user)
-                obj = {'user': user, 'request': 'LOGIN',
-                       'msg': 'Login successful'}
-                client_socket.send('OK', obj)
+                if check_user(Registry.online_clients, user.username):
+                    obj = {'request' : 'LOGIN', 'msg': 'User is logged in another instance'}
+                    client_socket.send('REJECT', obj)
+                else:
+                    Registry.online_clients.append(user)
+                    obj = {'user': user, 'request': 'LOGIN',
+                        'msg': 'Login successful'}
+                    client_socket.send('OK', obj)
             except WrongPasswordException:
                 obj = {'request': 'LOGIN',
                        'msg': 'Invalid password. Please try again'}
@@ -154,8 +158,6 @@ class Registry:
                     self.search(packet_data, client_socket)
                 elif packet_header == 'CHATREQUESTREG':
                     self.chat_request(packet_data, client_socket)
-                else:
-                    pass
 
             except IOError as e:
                 if e.errno == errno.EBADF:
@@ -167,7 +169,7 @@ class Registry:
         while True:
             now = datetime.now()
             delta = (now - user.last_active).total_seconds()
-            if delta > 20:
+            if delta > 200:
                 with Registry.lock:
                     self.db.update_field(user.username, online=False)
                     self.user.online = False
