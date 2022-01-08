@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 from datetime import datetime
 from sqlalchemy import create_engine, inspect
-from sqlalchemy import Column, String, Date, Integer, Boolean, ARRAY
+from sqlalchemy import Column, String, Date, Integer, Boolean, ARRAY, TIMESTAMP
 from sqlalchemy.sql.schema import MetaData, Table
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.exc import IntegrityError
@@ -48,7 +48,7 @@ user_table = Table(
     Column('username', String, primary_key=True),
     Column('password', String),
     Column('address', ARRAY(String)),
-    Column('last_active', Date),
+    Column('last_active', TIMESTAMP),
     Column('chatport', Integer),
     Column('busy', Boolean, default=False),
     Column('thread_active', Boolean, default=False),
@@ -81,8 +81,9 @@ class Database:
 
     def login(self, username, password, address, chatport):
         select_statement = user_table.select().where(user_table.c.username == username)
-        user = dict(self.conn.execute(select_statement).fetchone())
+        user = self.conn.execute(select_statement).fetchone()
         if user is not None:
+            user = dict(user)
             if user['password'] == password:
                 update_statement = user_table.update().where(user_table.c.username == username).values(
                     address=address, last_active=datetime.now(), chatport=chatport, online=True)
@@ -99,8 +100,9 @@ class Database:
 
     def logout(self, username):
         select_statement = user_table.select().where(user_table.c.username == username)
-        user = dict(self.conn.execute(select_statement).fetchone())
+        user = self.conn.execute(select_statement).fetchone()
         if user is not None:
+            user = dict(user)
             if user['online'] == True:
                 update_statement = user_table.update().where(user_table.c.username == username).values(online=False)
                 self.conn.execute(update_statement)
@@ -112,15 +114,16 @@ class Database:
     
     def chat_address(self, username):
         select_statement = user_table.select().where(user_table.c.username == username)
-        user = dict(self.conn.execute(select_statement).fetchone())
+        user = self.conn.execute(select_statement).fetchone()
         if user is not None:
+            user = dict(user)
             return (user['address'][0], int(user['chatport']))
         else:
             raise UserNotExistsException
     
     def update_field(self, username, **args):
         select_statement = user_table.select().where(user_table.c.username == username)
-        user = dict(self.conn.execute(select_statement).fetchone())
+        user = self.conn.execute(select_statement).fetchone()
         if user is not None:
             update_statement = user_table.update().where(user_table.c.username == username).values(**args)
             self.conn.execute(update_statement)
@@ -133,7 +136,10 @@ class Database:
             user = dict(user)
             ls.append(user['address'][0], int(user['chatport'])) 
         return ls    
-
-
-
-
+    
+    def set_offline(self):
+        update_statement = user_table.update().where(user_table.c.online == True).values(
+            online=False
+        )
+        self.conn.execute(update_statement)
+    

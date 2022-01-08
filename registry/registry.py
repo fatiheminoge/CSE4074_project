@@ -43,7 +43,8 @@ class Registry:
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.listen_udp)
         udp_thread.start()
-
+        self.db.set_offline()
+        
     def register(self, packet_data, client_socket: TCP_Socket):
         username = packet_data['username']
         password = packet_data['password']
@@ -88,9 +89,13 @@ class Registry:
     def logout(self, user, client_socket: TCP_Socket):
         with Registry.lock:
             try:
-                self.db.logout(user.username)
-                obj = {'request': 'LOGOUT', 'msg': 'Logout successful'}
-                client_socket.send('OK', obj)
+                if user is not None:
+                    self.db.logout(user.username)
+                    obj = {'request': 'LOGOUT', 'msg': 'Logout successful'}
+                    self.user.online = False
+                    client_socket.send('OK', obj)
+                else:
+                    raise UserIsNotLoggedInException
             except UserIsNotLoggedInException:
                 obj = {'request': 'LOGOUT',
                        'msg': 'User is currently not signed in'}
@@ -100,7 +105,7 @@ class Registry:
         username = packet_data['username']
         with Registry.lock:
             try:
-                address = self.db.find_address(username)
+                address = self.db.chat_address(username)
                 obj = {'request': 'SEARCH', 'msg': 'User found',
                        'address': address}
                 client_socket.send('OK', obj)
@@ -155,15 +160,17 @@ class Registry:
             except IOError as e:
                 if e.errno == errno.EBADF:
                     print('Client socket is closed')
-                    sys.exit()
+                    sys.exit()        
+
 
     def active(self, user):
         while True:
             now = datetime.now()
             delta = (now - user.last_active).total_seconds()
-            if delta > 200:
+            if delta > 20:
                 with Registry.lock:
                     self.db.update_field(user.username, online=False)
+                    self.user.online = False
                     sys.exit()
 
 

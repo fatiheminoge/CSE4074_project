@@ -134,11 +134,12 @@ class Peer(Socket):
         global resume
         resume = False
         if header == 'REGISTER' or header == 'LOGIN':
-            username = input('> username: ')
-            password = input('> password: ')
-            obj = {'username': username, 'password': password, 'chatport': port}
             if not self.user:
-                self.tcp_socket.send(header, obj)
+                username = input('> username: ')
+                password = input('> password: ')
+                obj = {'username': username, 'password': password, 'chatport': port}
+                if not self.user:
+                    self.tcp_socket.send(header, obj)
             else:
                 print('You are currently logged in')
                 resume = True
@@ -153,13 +154,14 @@ class Peer(Socket):
                 print('> To search a user you should be signed in')
                 resume = True
         elif header == 'CHATREQUEST':
-            username = input(
-                '> Enter the username of the user you want to chat: ')
-            obj = {'username': username}
-            self.tcp_socket.send('CHATREQUESTREG', obj)
-        else:
-            pass
-
+            if self.user:
+                username = input(
+                    '> Enter the username of the user you want to chat: ')
+                obj = {'username': username}
+                self.tcp_socket.send('CHATREQUESTREG', obj)
+            else:
+                print('> To send a chat request you should be signed in')
+                resume = True
 
 class PeerServer(Socket):
     def __init__(self, chat_socket):
@@ -197,7 +199,7 @@ class PeerServer(Socket):
         obj = {'username': self.user.username, 'request': 'CHATREQUEST', 'address' : self.tcp_socket.socket.getsockname()}
         self.chat_socket.send('CHATREQUEST', obj)
 
-    def receive_packet(self, client_socket: TCP_Socket):
+    def receive_packet_chat_socket(self, client_socket: TCP_Socket):
         global chat
         global resume
         global user_input
@@ -243,7 +245,7 @@ class PeerServer(Socket):
                                 self.chat_socket.send('OK', obj)
                             else:
                                 obj = {
-                                    'msg': f'{self.user.username} rejected to chat'}
+                                    'msg': f'\n{self.user.username} rejected to chat'}
                                 resume = True
                                 self.chat_socket.send('REJECT', obj)
                             
@@ -256,12 +258,13 @@ class PeerServer(Socket):
                             self.user.peer_name = packet_data['username']
                             chat = True
                         if packet_header == 'REJECT' or packet_header == 'BUSY':
+                            print(message)
+                            if chat:
+                                print('> Type operation that you want to make: ', end='')
                             resume = True
                             chat = False
                             self.chat_socket = None
                             self.user.busy = False
-                            print(message)
-                            print('> Type operation that you want to make: ', end='')
                             sys.stdout.flush()
                             sys.exit()
 
@@ -281,7 +284,6 @@ class PeerServer(Socket):
 
             except Exception as e:
                 print(e)
-                pass
 
     def listen_tcp(self):
         self.tcp_socket.socket.listen()
@@ -289,7 +291,7 @@ class PeerServer(Socket):
             client_socket, client_address = self.tcp_socket.socket.accept()
             client_socket = TCP_Socket(
                 socket=client_socket, address=client_address)
-            client_thread = threading.Thread(target=self.receive_packet, args=(client_socket, ))
+            client_thread = threading.Thread(target=self.receive_packet_chat_socket, args=(client_socket, ))
             client_thread.start()
 
 
