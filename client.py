@@ -39,9 +39,10 @@ chat_socket = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
 
 resume = True
 loop = True
-chat = False
+chat_thread = False
 
-
+user_input = None
+chat_request = False
 class Peer(Socket):
 
     def __init__(self, tcp_socket, udp_socket, peer_server):
@@ -162,19 +163,20 @@ class PeerServer(Socket):
         tcp_thread.start()
 
     def chat(self):
-        global chat
+        global chat_thread
         global resume
-        while chat:
+        chat_thread = False
+        while True:
             message = input('> ')
             if message == 'exit':
                 with lock:
-                    chat = False
                     resume = True
-                obj = {'msg' : f'{self.user.username} is closed connection'}
+                obj = {'msg' : f'{self.user.username} closed chat connection'}
                 self.chat_socket.send('REJECT', obj)
                 self.chat_socket = None
                 self.user.busy = False
-                break
+                sys.exit()
+                
             obj = {'msg': message}
             if self.chat_socket:
                 self.chat_socket.send('CHAT', obj)
@@ -188,15 +190,17 @@ class PeerServer(Socket):
         self.chat_socket.send('CHATREQUEST', obj)
 
     def receive_packet(self, client_socket: TCP_Socket):
-        global chat
+        global chat_thread
         global resume
+        global user_input
+        global chat_request
         resume = False
         while True:
             try:
-                
                 packet_header, packet_data = client_socket.receive_message()
                 with lock:
                     if packet_header == 'CHATREQUEST':
+                        chat_request = True
                         chat_socket_address = packet_data['address']
                         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         chat_sock.connect(chat_socket_address)
@@ -206,12 +210,20 @@ class PeerServer(Socket):
                                 'msg': 'User is currently chatting with another person'}
                             resume = True
                             self.chat_socket.send('BUSY', obj)
+                            chat_request = False
                         else:
                             username = packet_data['username']
-                            print(f'\nUser {username} wants to chat with you [Y/N]:', end=' ')
-                            accept = input().lower()
-                            while accept != 'y' and accept != 'n': 
-                                accept = input('Invalid option enter [Y/N]: ').lower()
+                            print(f'\nUser {username} wants to chat with you [Y/N]: ', end='')
+                            user_input = None
+                            accept = user_input
+                            answers = ['y', 'n']
+                            while accept not in answers:
+                                if not user_input:
+                                    continue
+                                elif user_input and not accept:
+                                    accept = user_input.lower()
+                                else:
+                                    accept = input('Invalid option enter [Y/N]: ').lower()
 
                             accept = True if accept == 'y' else False
                             if accept:
@@ -219,27 +231,30 @@ class PeerServer(Socket):
                                 self.user.peer_name = username
                                 obj = {
                                     'msg': f'{self.user.username} accepted to chat', 'username' : self.user.username}
-                                chat = True
+                                chat_thread = True
                                 self.chat_socket.send('OK', obj)
                             else:
                                 obj = {
                                     'msg': f'{self.user.username} rejected to chat'}
                                 resume = True
                                 self.chat_socket.send('REJECT', obj)
+                            
+                            chat_request = False
 
                     elif packet_header in Socket.RESPONSE_HEADERS:
                         message = packet_data['msg']
                         if packet_header == 'OK':
                             self.user.busy = True
                             self.user.peer_name = packet_data['username']
-                            chat = True
+                            chat_thread = True
                         if packet_header == 'REJECT' or packet_header == 'BUSY':
                             resume = True
-                            chat = False
                             self.chat_socket = None
                             self.user.busy = False
+                            print(message)
+                            sys.stdout.flush()
                             sys.exit()
-
+                    
                     elif packet_header == 'CHAT':
                         message = packet_data['msg']
                         print(f'{self.user.peer_name}: {message}')
@@ -249,7 +264,6 @@ class PeerServer(Socket):
             except IOError as e:
                 if e.errno == errno.EBADF:
                     with lock:
-                        print('Client socket is closed')
                         resume = True
                         chat = False
                         sys.exit()
@@ -267,26 +281,26 @@ class PeerServer(Socket):
                 socket=client_socket, address=client_address)
             client_thread = threading.Thread(target=self.receive_packet, args=(client_socket, ))
             client_thread.start()
-    
-
 
 def main():
-    global resume
+    global user_input
     peer_server = PeerServer(chat_socket=chat_socket)
     peer = Peer(tcp_socket=tcp_socket,
                     udp_socket=udp_socket, peer_server=peer_server)
 
     while loop:
         if resume:
-            header = input(
+            user_input = input(
                 '> Type operation that you want to make: ').upper()
-            if header not in Socket.REQUEST_HEADERS:
+            if user_input not in Socket.REQUEST_HEADERS and not chat_request:
                 print('Invalid operation')
                 continue
             else:
-                peer.make_request(header)
-        if chat:
-            peer.peer_server.chat()
+                peer.make_request(user_input)
+        if chat_thread:
+            thread = threading.Thread(target= peer.peer_server.chat)
+            peer.peer_server.chat_thread = thread
+            thread.start()
     sys.exit()
 
 
