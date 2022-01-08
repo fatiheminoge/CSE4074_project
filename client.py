@@ -147,10 +147,16 @@ class Peer(Socket):
             obj = {'username': username}
             self.tcp_socket.send('SEARCH', obj)
         elif header == 'CHATREQUEST':
-            username = input(
+            usernames = input(
                 '> Enter the username of the user you want to chat: ')
-            obj = {'username': username}
-            self.tcp_socket.send('CHATREQUESTREG', obj)
+            username_list = usernames.split()    
+            if len(username_list) == 1:
+                obj = {'username': usernames}
+                self.tcp_socket.send('CHATREQUESTREG', obj)
+            elif len(username_list) > 1:
+                obj = {'usernames': usernames}
+                self.tcp_socket.send('MULTICHATREQUESTREG', obj)
+
         else:
             pass
 
