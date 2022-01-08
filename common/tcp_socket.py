@@ -6,13 +6,13 @@ import inspect
 logging.basicConfig(filename="newfile.log",
                     format='%(asctime)s — %(levelname)s — %(CALLER)s — %(message)s',
                     filemode='w')
-logger = logging.getLogger()
+logger = logging.getLogger('Logger')
 logger.setLevel(logging.DEBUG)
 
-from common.our_sock import Socket
+from common.protocol import Protocol
 from util import *
 
-class TCP_Socket(Socket):
+class TCP_Socket(Protocol):
 
     def __init__(self, socket: socket.socket, address):
         super().__init__()
@@ -21,21 +21,21 @@ class TCP_Socket(Socket):
 
     def create_message(self, header, message):
         message = pickle.dumps(message)
-        message = bytes(f'{header:<{Socket.HEADER_LENGTH}}', Socket.FORMAT) + bytes(f'{len(message):<{Socket.HEADER_LENGTH}}',
-                                                                                    Socket.FORMAT) + message
+        message = bytes(f'{header:<{Protocol.HEADER_LENGTH}}', Protocol.FORMAT) + bytes(f'{len(message):<{Protocol.HEADER_LENGTH}}',
+                                                                                    Protocol.FORMAT) + message
         return bytes(message)
 
     def receive_message(self):
-        packet_header = self.socket.recv(Socket.HEADER_LENGTH)
+        packet_header = self.socket.recv(Protocol.HEADER_LENGTH)
         packet_header = packet_header.decode('utf-8').rstrip(' ')
-        if (packet_header not in Socket.RESPONSE_HEADERS and packet_header not in Socket.REQUEST_HEADERS):
+        if (packet_header not in Protocol.RESPONSE_HEADERS and packet_header not in Protocol.REQUEST_HEADERS):
             # We should think of a better way to include headers into messages
             message = self.create_message(
                 'INVALID', 'Invalid header. Closing connection!')
             self.socket.send(message)
             self.socket.close()
 
-        packet_length = self.socket.recv(Socket.HEADER_LENGTH)
+        packet_length = self.socket.recv(Protocol.HEADER_LENGTH)
         packet_length = int(packet_length.decode('utf-8').strip())
 
         packet_data = self.socket.recv(packet_length)

@@ -1,12 +1,11 @@
 import errno
-import re
 import time
 import socket
 import threading
 import sys
 from common.tcp_socket import TCP_Socket
 from common.udp_socket import UDP_Socket
-from common.our_sock import Socket
+from common.protocol import Protocol
 from common.util import *
 
 port_list = range(5000, 6000, 42)
@@ -15,8 +14,8 @@ lock = threading.Lock()
 # getting local ip automatically
 SERVER = socket.gethostbyname('localhost')
 IP = socket.gethostbyname('localhost')
-TCP_ADDR = (SERVER, Socket.TCP_PORT)
-UDP_ADDR = (SERVER, Socket.UDP_PORT)
+TCP_ADDR = (SERVER, Protocol.TCP_PORT)
+UDP_ADDR = (SERVER, Protocol.UDP_PORT)
 
 tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcp_sock.connect(TCP_ADDR)
@@ -45,7 +44,7 @@ chat = False
 user_input = None
 chat_request = False
 chat_end = None
-class Peer(Socket):
+class Peer(Protocol):
 
     def __init__(self, tcp_socket, udp_socket, peer_server):
         """
@@ -74,34 +73,49 @@ class Peer(Socket):
                 packet_header, packet_data = self.tcp_socket.receive_message()
                 with lock:
                     request = packet_data['request']
+                    logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
+                    message = packet_data['msg']
+                    if packet_header != 'OK':
+                        logmessage = logmessage % (packet_data['username'], message)
+                        
                     if request == 'LOGIN' or request == 'REGISTER':
                         if packet_header == 'OK':
                             user = packet_data['user']
                             self.user = user
                             self.peer_server.user = user
-                        message = packet_data['msg']
+                            logmessage = logmessage % self.user.username
+                            
+                        self.tcp_socket.log(logmessage)
                         print(message)
                         resume = True
                     elif request == 'LOGOUT':
                         if packet_header == 'OK':
+                            logmessage = logmessage % self.user.username
                             self.user = None
-                        message = packet_data['msg']
+                        
+                        self.tcp_socket.log(logmessage)
                         print(message)
                         resume = True
                     elif request == 'SEARCH':
                         if packet_header == 'OK':
                             user_address = packet_data['address']
                             print(user_address)
-                        message = packet_data['msg']
+                            logmessage = logmessage % (self.user.username, packet_data['username'])
+                        
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request] % packet_data['username']
+                        self.tcp_socket.log(logmessage)
                         print(message)
                         resume = True
                     elif request == 'CHATREQUESTREG':
                         if packet_header == 'OK':
                             user_address = packet_data['address']
                             self.peer_server.peer_address = user_address
-                            self.peer_server.send_chat_request()
+                            logmessage = logmessage % (self.user.username, packet_data['username'])
+                            self.tcp_socket.log(logmessage)
+                            
+                            self.peer_server.send_chat_request(packet_data['username'])
                         else:
-                            message = packet_data['msg']
+                            self.tcp_socket.log(logmessage)
                             resume = True   
                             print(message)
                         pass
@@ -128,7 +142,8 @@ class Peer(Socket):
         while True:
             if self.user is not None:
                 obj = {'username': self.user.username}
-                self.udp_socket.send('HELLO', obj)
+                logmessage = f'User: {self.user.username} made HELLO request'
+                self.udp_socket.send('HELLO', obj, logmessage)
                 time.sleep(60)
 
     def make_request(self, header):
@@ -138,25 +153,24 @@ class Peer(Socket):
             if not self.user:
                 username = input('> username: ')
                 password = input('> password: ')
-                logmessage = f'User: {username}, made {header} request'
+                logmessage = Protocol.logmessages['REQUEST'][header]['client'] % username
                 obj = {'username': username, 'password': password, 'chatport': port}
-                if not self.user:
-                    self.tcp_socket.send(header, obj, logmessage)
+                self.tcp_socket.send(header, obj, logmessage)
             else:
                 print('You are currently logged in')
                 resume = True
         elif header == 'LOGOUT':
             if self.user:
-                logmessage = f'User: {self.user.username}, made {header} request'
-                self.tcp_socket.send('LOGOUT', self.user)
+                logmessage = Protocol.logmessages['REQUEST']['LOGOUT']['client'] % self.user.username
+                self.tcp_socket.send('LOGOUT', self.user, logmessage)
             else:
                 print('You are not logged in')
                 resume = True
         elif header == 'SEARCH':
             if self.user:
                 username = input('> Enter the username of the user you want to search: ')
-                if username != self.username:
-                    logmessage = f'User: {self.user.username}, made {header} request for the user: {username}'
+                if username != self.user.username:
+                    logmessage = Protocol.logmessages['REQUEST']['SEARCH']['client'] % (self.user.username, username)
                     obj = {'username': username}
                     self.tcp_socket.send('SEARCH', obj, logmessage)
                 else:
@@ -169,14 +183,14 @@ class Peer(Socket):
             if self.user:
                 username = input(
                     '> Enter the username of the user you want to chat: ')
-                logmessage = f'User: {self.user.username}, made {header} request to registry to find the address of user: {username}'
+                logmessage = Protocol.logmessages['REQUEST']['CHATREQUESTREG']['client'] % (self.user.username, username)
                 obj = {'username': username}
                 self.tcp_socket.send('CHATREQUESTREG', obj, logmessage)
             else:
                 print('> To send a chat request you should be signed in')
                 resume = True
 
-class PeerServer(Socket):
+class PeerServer(Protocol):
     def __init__(self, chat_socket):
         self.tcp_socket: TCP_Socket = chat_socket
         tcp_thread = threading.Thread(target=self.listen_tcp)
@@ -204,13 +218,15 @@ class PeerServer(Socket):
             if self.chat_socket:
                 self.chat_socket.send('CHAT', obj)
 
-    def send_chat_request(self):
+    def send_chat_request(self, peer_name):
         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         chat_sock.connect(self.peer_address)
         self.chat_socket = TCP_Socket(
             socket=chat_sock, address=chat_sock.getsockname())
         obj = {'username': self.user.username, 'request': 'CHATREQUEST', 'address' : self.tcp_socket.socket.getsockname()}
         self.chat_socket.send('CHATREQUEST', obj)
+        logmessage = Protocol.logmessages['REQUEST']['CHATREQUEST']['client'] % (self.user.username, peer_name)
+        self.tcp_socket.log(logmessage)
 
     def receive_packet_chat_socket(self, client_socket: TCP_Socket):
         global chat
@@ -223,6 +239,8 @@ class PeerServer(Socket):
                 packet_header, packet_data = client_socket.receive_message()
                 with lock:
                     if packet_header == 'CHATREQUEST':
+                        logmessage = Protocol.logmessages['REQUEST'][packet_header]['client']
+                        
                         chat_request = True
                         chat_socket_address = packet_data['address']
                         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -230,10 +248,13 @@ class PeerServer(Socket):
                         self.chat_socket = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
                         if self.user.busy:
                             obj = {
-                                'msg': 'User is currently chatting with another person'}
+                                'msg': 'User is currently chatting with another person', 'username' : self.user.username}
                             resume = True
                             self.chat_socket.send('BUSY', obj)
                             chat_request = False
+                            
+                            logmessage = logmessage['BUSY'] % (self.user.username, '')
+                            self.tcp_socket.logmessages(logmessage)
                         else:
                             username = packet_data['username']
                             print(f'\nUser {username} wants to chat with you [Y/N]: ', end='')
@@ -256,20 +277,30 @@ class PeerServer(Socket):
                                     'msg': f'{self.user.username} accepted to chat', 'username' : self.user.username}
                                 chat = True
                                 self.chat_socket.send('OK', obj)
+                                logmessage = logmessage['OK'] % (self.user.username, self.user.peer_name)
+                                self.tcp_socket.log(logmessage)
                             else:
                                 obj = {
-                                    'msg': f'\n{self.user.username} rejected to chat'}
+                                    'msg': f'\n{self.user.username} rejected to chat', 'username' : self.user.username}
                                 resume = True
                                 self.chat_socket.send('REJECT', obj)
-                            
+                                logmessage = logmessage['REJECT'] % (self.user.username, username)
+                                self.tcp_socket.log(logmessage)
+                                
                             chat_request = False
 
-                    elif packet_header in Socket.RESPONSE_HEADERS:
+                    elif packet_header in Protocol.RESPONSE_HEADERS:
+                        peer_name = packet_data['username']
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client']['CHAT'] 
+                        logmessage = logmessage % (self.user.username, peer_name)
+                        
                         message = packet_data['msg']
                         if packet_header == 'OK':
                             self.user.busy = True
-                            self.user.peer_name = packet_data['username']
+                            self.user.peer_name = peer_name
                             chat = True
+                            self.tcp_socket.log(logmessage)
+                            
                         if packet_header == 'REJECT' or packet_header == 'BUSY':
                             print(message)
                             if chat:
@@ -278,10 +309,15 @@ class PeerServer(Socket):
                             chat = False
                             self.chat_socket = None
                             self.user.busy = False
+                            self.tcp_socket.log(logmessage)
                             sys.stdout.flush()
+                            
                             sys.exit()
 
                     elif packet_header == 'CHAT':
+                        logmessage = Protocol.logmessages['REQUSET'][packet_header]['client'] 
+                        logmessage = logmessage % (self.user.peer_name, self.user.username)
+                        
                         message = packet_data['msg']
                         print(f'{self.user.peer_name}: {message}')
                         print('> ', end='')
@@ -306,6 +342,8 @@ class PeerServer(Socket):
                 socket=client_socket, address=client_address)
             client_thread = threading.Thread(target=self.receive_packet_chat_socket, args=(client_socket, ))
             client_thread.start()
+            logmessage = Protocol.logmessages['CONNECTION'] % (client_address, self.user.username)
+            self.tcp_socket.log(logmessage)
 
 
 def main():
@@ -321,7 +359,7 @@ def main():
                 '> Type operation that you want to make: ').upper() if not chat_end else chat_end.upper()
             if chat_end:
                 chat_end = None
-            if user_input not in Socket.REQUEST_HEADERS and not chat_request:
+            if user_input not in Protocol.REQUEST_HEADERS and not chat_request:
                 print('Invalid operation')
                 continue
             else:

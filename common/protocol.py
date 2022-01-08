@@ -1,0 +1,87 @@
+class Protocol:
+    FORMAT = 'utf-8'
+    REQUEST_HEADERS = [
+        'REGISTER', 'LOGIN', 'LOGOUT', 'HELLO', 'CHATREQUEST', 'SEARCH', 'CHATREQUESTREG', 'CHAT'
+    ]
+    RESPONSE_HEADERS = [
+        'OK', 'REJECT', 'BUSY', 'INVALID', 'NOTFOUND'
+    ]
+    HEADER_LENGTH = 16
+    UDP_PACKET_SIZE = 1024
+    TCP_PORT = 2424
+    UDP_PORT = 4242
+    logmessages = {
+        'REQUEST':
+            {
+                'REGISTER': {'registry': 'User: %s sent a REGISTER request', 'client': 'Client %s made a REGISTER request to registry'},
+                'LOGIN': {'registry': 'User: %s sent a LOGIN request', 'client': 'User: %s made a LOGIN request to registry'},
+                'LOGOUT': {'registry': 'User: %s sent a LOGOUT request', 'client': 'User: %s made a LOGOUT request to registry'},
+                'HELLO': {'registry': 'Received HELLO message from User: %s', 'client': 'User: %s made a HELLO request'},
+                'CHATREQUEST': {'registry': 'User: %s sent a CHATREQUEST to user %s',
+                                'client':
+                                {
+                                    'OK': 'User: %s, accepted to chat with %s',
+                                    'REJECT': 'User: %s, rejected to chat with %s',
+                                    'BUSY': 'User: %s, is busy %s'
+                                }
+                                },
+                'SEARCH': {'registry': 'User: %s sent a SEARCH request for user %s', 'client': 'User: %s made a SEARCH request for the user: %s to registry'},
+                'CHATREQUESTREG': {'registry': 'User: %s sent a CHATREQUESTREG for the user: %s', 'client': 'User: %s made a CHATREQUESTREG for the user: %s to registry'},
+                'CHAT': {'client': 'User: %s sent a message to user: %s'}
+            },
+
+        'RESPONSE':
+            {
+                'OK':
+                    {
+                        'registry': '',
+                        'client': {
+                            'REGISTER': 'User: %s, successfully registered ',
+                            'LOGIN': 'User: %s, successfully logged in',
+                            'LOGOUT': 'User: %s, successfully logged out',
+                            'SEARCH': 'User: %s, successfully found the user %s',
+                            'CHATREQUESTREG': 'User: %s, successfully found the user %s',
+                            'CHATREQUEST': 'User: Chat with the user %s is accepted',
+                            'CHAT': 'User: %s, accepted to chat with %s'
+                        }
+                    },
+                'REJECT':
+                    {
+                        'registry': '',
+                        'client':
+                            {
+                                'REGISTER': 'User: %s, couldn\'t registered because %s',
+                                'LOGIN': 'User: %s, couldn\'t logged in because %s',
+                                'LOGOUT': 'User: %s, couldn\'t logged out because %s',
+                                'CHAT': 'User: %s, rejected to chat with %s'
+                            }
+                    },
+                'BUSY': {
+                    'registry': '',
+                        'client':
+                        {
+                            'CHAT': 'User: %s, user %s is busy'
+                        }
+                    },
+                'INVALID': {'registry': '', 'client': ''},
+                'NOTFOUND':
+                    {
+                        'registry': '',
+                        'client': {
+                            'SEARCH': 'User: %s, couldn\'t be found %s',
+                            'CHATREQUESTREG': 'User: %s, couldn\'t be found %s'
+                        }
+                }
+            },
+            'CONNECTION': 'Peer with the address %s connected to %s',
+
+    }
+
+    def __init__(self) -> None:
+        pass
+
+    def create_message(self):
+        pass
+
+    def parse_message(self):
+        pass
