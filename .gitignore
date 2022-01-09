@@ -3,4 +3,4 @@ tutorial
 __pycache__
 old
 .idea
-logfile.log
+newfile.log

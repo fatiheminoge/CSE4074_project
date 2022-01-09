@@ -14,8 +14,8 @@ lock = threading.Lock()
 # getting local ip automatically
 SERVER = socket.gethostbyname('localhost')
 IP = socket.gethostbyname('localhost')
-TCP_ADDR = ('0.0.0.0', Protocol.TCP_PORT)
-UDP_ADDR = ('0.0.0.0', Protocol.UDP_PORT)
+TCP_ADDR = (SERVER, Protocol.TCP_PORT)
+UDP_ADDR = (SERVER, Protocol.UDP_PORT)
 
 tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcp_sock.connect(TCP_ADDR)

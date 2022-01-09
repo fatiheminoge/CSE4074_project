@@ -15,7 +15,7 @@ from common.protocol import Protocol
 from database import Database
 
 
-IP = socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname('localhost')
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
 UDP_ADDR = (IP, UDP_Socket.UDP_PORT)
 

@@ -2,24 +2,27 @@ version: '3.9'
 services:
   postgres-db: 
     image: postgres:latest
+    restart: always
+    container_name: postgres-db
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - 5432:5432
-    healthcheck:
-      test: pg_isready -U postgres
+      - 5433:5432
   
   registry:
-    build: .
-    container_name: registry
+    image: python:3.8-slim
+    entrypoint: ["/bin/bash"]
     tty: true
+    working_dir: /code
+    container_name: registry
+    volumes:
+      - ./:/code
     ports:
       - 2424:2424
       - 4242:4242
     depends_on:
-      postgres-db:
-        condition: service_healthy
+      - postgres-db
     links:
       - postgres-db
 
