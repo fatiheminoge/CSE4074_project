@@ -5,9 +5,9 @@ import pickle
 import logging
 import inspect
 
-logging.basicConfig(filename="newfile.log",
+logging.basicConfig(filename="logfile.log",
                     format='%(asctime)s — %(levelname)s — %(CALLER)s — %(message)s',
-                    filemode='w')
+                    filemode='a')
 logger = logging.getLogger('Logger')
 logger.setLevel(logging.DEBUG)
 

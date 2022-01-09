@@ -3,10 +3,10 @@ import pickle
 import logging
 import inspect
 
-logging.basicConfig(filename="newfile.log",
+logging.basicConfig(filename="logfile.log",
                     format='%(asctime)s — %(levelname)s — %(CALLER)s — %(message)s',
-                    filemode='w')
-logger = logging.getLogger('Logger')
+                    filemode='a')
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 from common.protocol import Protocol

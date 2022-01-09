@@ -8,10 +8,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 
 from common.error import *
 from common.util import *
-from database import Database
 from common.user import User
 from common.udp_socket import UDP_Socket
 from common.tcp_socket import TCP_Socket
+from common.protocol import Protocol
+from database import Database
+
 
 IP = socket.gethostbyname('localhost')
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
@@ -37,13 +39,19 @@ class Registry:
 
     def __init__(self, tcp_socket, udp_socket):
         Registry.tcp_socket = tcp_socket
-        Registry.udp_socket = udp_socket
+        Registry.udp_socket = udp_socket        
         self.db = Database()
         tcp_thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.listen_udp)
         udp_thread.start()
         self.db.set_offline()
+        
+        with open('logfile.log', 'w'):
+            pass
+        logmessage = 'REGISTRY is starting'
+        self.tcp_socket.log(logmessage)
+
 
     def register(self, packet_data, client_socket: TCP_Socket):
         username = packet_data['username']
@@ -91,7 +99,8 @@ class Registry:
                 client_socket.send(
                     'REJECT', obj)
 
-    def logout(self, user, client_socket: TCP_Socket):
+    def logout(self, packet_data, client_socket: TCP_Socket):
+        user = packet_data['user']
         with Registry.lock:
             try:
                 if user is not None:
@@ -130,7 +139,7 @@ class Registry:
                        'address': chat_address, 'username': username}
                 client_socket.send('OK', obj)
             except UserNotExistsException:
-                obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found'}
+                obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found', 'username': username}
                 client_socket.send('NOTFOUND', obj)
 
     def listen_tcp(self):
@@ -151,16 +160,24 @@ class Registry:
         while connected:
             try:
                 packet_header, packet_data = client_socket.receive_message()
+                username = packet_data['username']
+                logmessage = Protocol.logmessages['REQUEST'][packet_header]['registry']
                 if packet_header == 'REGISTER':
                     self.register(packet_data, client_socket)
+                    self.tcp_socket.log(logmessage % username)
                 elif packet_header == 'LOGIN':
                     self.login(packet_data, client_socket)
+                    self.tcp_socket.log(logmessage % username)
                 elif packet_header == 'LOGOUT':
                     self.logout(packet_data, client_socket)
+                    self.tcp_socket.log(logmessage % username)
                 elif packet_header == 'SEARCH':
                     self.search(packet_data, client_socket)
+                    self.tcp_socket.log(logmessage % (packet_data['user'], username))
                 elif packet_header == 'CHATREQUESTREG':
                     self.chat_request(packet_data, client_socket)
+                    self.tcp_socket.log(logmessage % username)
+                    
 
             except IOError as e:
                 if e.errno == errno.EBADF:
@@ -193,6 +210,8 @@ class Registry:
             if user and packet_header == 'HELLO':
                 print(f'Received udp packet with the header {packet_header}')
                 user.last_active = datetime.now()
+                logmessage = Protocol.logmessages['REQUEST']['HELLO']['registry'] % user.username
+                self.tcp_socket.log(logmessage)
 
 
 def main():

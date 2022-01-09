@@ -13,10 +13,10 @@ class Protocol:
     logmessages = {
         'REQUEST':
             {
-                'REGISTER': {'registry': 'User: %s sent a REGISTER request', 'client': 'Client %s made a REGISTER request to registry'},
-                'LOGIN': {'registry': 'User: %s sent a LOGIN request', 'client': 'User: %s made a LOGIN request to registry'},
-                'LOGOUT': {'registry': 'User: %s sent a LOGOUT request', 'client': 'User: %s made a LOGOUT request to registry'},
-                'HELLO': {'registry': 'Received HELLO message from User: %s', 'client': 'User: %s made a HELLO request'},
+                'REGISTER': {'registry': 'Received REGISTER request from user: %s', 'client': 'Client %s made a REGISTER request to registry'},
+                'LOGIN': {'registry': 'Received LOGIN request from user: %s', 'client': 'User: %s made a LOGIN request to registry'},
+                'LOGOUT': {'registry': 'Received LOGOUT request from user: %s', 'client': 'User: %s made a LOGOUT request to registry'},
+                'HELLO': {'registry': 'Received HELLO request from User: %s', 'client': 'User: %s made a HELLO request to registry'},
                 'CHATREQUEST': {'registry': 'User: %s sent a CHATREQUEST to user %s',
                                 'client':
                                 {
@@ -26,7 +26,7 @@ class Protocol:
                                 }
                                 },
                 'SEARCH': {'registry': 'User: %s sent a SEARCH request for user %s', 'client': 'User: %s made a SEARCH request for the user: %s to registry'},
-                'CHATREQUESTREG': {'registry': 'User: %s sent a CHATREQUESTREG for the user: %s', 'client': 'User: %s made a CHATREQUESTREG for the user: %s to registry'},
+                'CHATREQUESTREG': {'registry': 'Received CHATREQUESTREG request from user: %s', 'client': 'User: %s made a CHATREQUESTREG for the user: %s to registry'},
                 'CHAT': {'client': 'User: %s sent a message to user: %s'}
             },
 
@@ -36,12 +36,12 @@ class Protocol:
                     {
                         'registry': '',
                         'client': {
-                            'REGISTER': 'User: %s, successfully registered ',
-                            'LOGIN': 'User: %s, successfully logged in',
-                            'LOGOUT': 'User: %s, successfully logged out',
+                            'REGISTER': 'User: %s, successfully registered %s',
+                            'LOGIN': 'User: %s, successfully logged in %s',
+                            'LOGOUT': 'User: %s, successfully logged out %s',
                             'SEARCH': 'User: %s, successfully found the user %s',
                             'CHATREQUESTREG': 'User: %s, successfully found the user %s',
-                            'CHATREQUEST': 'User: Chat with the user %s is accepted',
+                            'CHATREQUEST': 'User: Chat with the user %s is accepted %s',
                             'CHAT': 'User: %s, accepted to chat with %s'
                         }
                     },
