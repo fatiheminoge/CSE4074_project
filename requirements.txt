@@ -1,0 +1,4 @@
+sqlalchemy==1.4.29
+sqlalchemy_utils==0.38.2
+psycopg2-binary==2.9.3
+
