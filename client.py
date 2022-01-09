@@ -315,7 +315,7 @@ class PeerServer(Protocol):
                             sys.exit()
 
                     elif packet_header == 'CHAT':
-                        logmessage = Protocol.logmessages['REQUSET'][packet_header]['client'] 
+                        logmessage = Protocol.logmessages['REQUEST'][packet_header]['client'] 
                         logmessage = logmessage % (self.user.peer_name, self.user.username)
                         
                         message = packet_data['msg']
