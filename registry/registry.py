@@ -15,7 +15,7 @@ from common.protocol import Protocol
 from database import Database
 
 
-IP = socket.gethostbyname('localhost')
+IP = socket.gethostbyname(socket.gethostname())
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
 UDP_ADDR = (IP, UDP_Socket.UDP_PORT)
 
@@ -64,7 +64,7 @@ class Registry:
                 self.db.register(**user.__dict__)
                 Registry.online_clients.append(user)
                 obj = {'user': user, 'request': 'REGISTER',
-                       'msg': 'The registration is complete'}
+                       'msg': 'The registration is complete', 'username' : user.username}
                 client_socket.send('OK', obj)
             except UserAlreadyExistsException:
                 obj = {'request': 'REGISTER',
@@ -86,7 +86,7 @@ class Registry:
                 else:
                     Registry.online_clients.append(user)
                     obj = {'user': user, 'request': 'LOGIN',
-                           'msg': 'Login successful'}
+                           'msg': 'Login successful', 'username': user.username}
                     client_socket.send('OK', obj)
             except WrongPasswordException:
                 obj = {'request': 'LOGIN',
@@ -188,7 +188,7 @@ class Registry:
         while True:
             now = datetime.now()
             delta = (now - user.last_active).total_seconds()
-            if delta > 200:
+            if delta > 20:
                 with Registry.lock:
                     self.db.update_field(user.username, online=False)
                     user.online = False

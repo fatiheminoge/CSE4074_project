@@ -17,14 +17,7 @@ class Protocol:
                 'LOGIN': {'registry': 'Received LOGIN request from user: %s', 'client': 'User: %s made a LOGIN request to registry'},
                 'LOGOUT': {'registry': 'Received LOGOUT request from user: %s', 'client': 'User: %s made a LOGOUT request to registry'},
                 'HELLO': {'registry': 'Received HELLO request from User: %s', 'client': 'User: %s made a HELLO request to registry'},
-                'CHATREQUEST': {'registry': 'User: %s sent a CHATREQUEST to user %s',
-                                'client':
-                                {
-                                    'OK': 'User: %s, accepted to chat with %s',
-                                    'REJECT': 'User: %s, rejected to chat with %s',
-                                    'BUSY': 'User: %s, is busy %s'
-                                }
-                                },
+                'CHATREQUEST': {'client': 'User: %s sent a CHATREQUEST to user %s'},
                 'SEARCH': {'registry': 'User: %s sent a SEARCH request for user %s', 'client': 'User: %s made a SEARCH request for the user: %s to registry'},
                 'CHATREQUESTREG': {'registry': 'Received CHATREQUESTREG request from user: %s', 'client': 'User: %s made a CHATREQUESTREG for the user: %s to registry'},
                 'CHAT': {'client': 'User: %s sent a message to user: %s'}
@@ -62,7 +55,7 @@ class Protocol:
                         {
                             'CHAT': 'User: %s, user %s is busy'
                         }
-                    },
+                },
                 'INVALID': {'registry': '', 'client': ''},
                 'NOTFOUND':
                     {
@@ -71,7 +64,7 @@ class Protocol:
                             'SEARCH': 'User: %s, couldn\'t be found %s',
                             'CHATREQUESTREG': 'User: %s, couldn\'t be found %s'
                         }
-                }
+                        }
             },
             'CONNECTION': 'Peer with the address %s connected to %s',
 

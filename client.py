@@ -12,8 +12,8 @@ port_list = range(5000, 6000, 42)
 
 lock = threading.Lock()
 # getting local ip automatically
-SERVER = socket.gethostbyname('localhost')
-IP = socket.gethostbyname('localhost')
+SERVER = socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname(socket.gethostname())
 TCP_ADDR = (SERVER, Protocol.TCP_PORT)
 UDP_ADDR = (SERVER, Protocol.UDP_PORT)
 
@@ -84,7 +84,8 @@ class Peer(Protocol):
                             self.user = user
                             self.peer_server.user = user
 
-                        self.tcp_socket.log(logmessage = logmessage % (self.user.username, message))
+                        self.tcp_socket.log(logmessage %
+                                            (packet_data['username'], message))
                         print(message)
                         resume = True
                     elif request == 'LOGOUT':
@@ -100,11 +101,13 @@ class Peer(Protocol):
                             user_address = packet_data['address']
                             print(user_address)
 
-                        self.tcp_socket.log(logmessage % (self.user.username, packet_data['username']))
+                        self.tcp_socket.log(logmessage % (
+                            self.user.username, packet_data['username']))
                         print(message)
                         resume = True
                     elif request == 'CHATREQUESTREG':
-                        self.tcp_socket.log(logmessage % (self.user.username, packet_data['username']))
+                        self.tcp_socket.log(logmessage % (
+                            self.user.username, packet_data['username']))
                         if packet_header == 'OK':
                             user_address = packet_data['address']
                             self.peer_server.peer_address = user_address
@@ -113,10 +116,9 @@ class Peer(Protocol):
                         else:
                             resume = True
                             print(message)
-                        
-                        
+
             except OSError as e:
-                print('\nConnection to server is closed forcely')
+                print('\nConnection to registry is closed forcely', end='n> ')
                 global loop
                 with lock:
                     loop = False
@@ -145,7 +147,7 @@ class Peer(Protocol):
     def make_request(self, header):
         global resume
         resume = False
-        logmessage = Protocol.logmessages['REQUEST'][header]['client'] 
+        logmessage = Protocol.logmessages['REQUEST'][header]['client']
         if header == 'REGISTER' or header == 'LOGIN':
             if not self.user:
                 username = input('> username: ')
@@ -159,7 +161,8 @@ class Peer(Protocol):
         elif header == 'LOGOUT':
             if self.user:
                 obj = {'user': self.user, 'username': self.user.username}
-                self.tcp_socket.send('LOGOUT', obj, logmessage % self.user.username)
+                self.tcp_socket.send(
+                    'LOGOUT', obj, logmessage % self.user.username)
             else:
                 print('You are not logged in')
                 resume = True
@@ -169,7 +172,8 @@ class Peer(Protocol):
                     '> Enter the username of the user you want to search: ')
                 if username != self.user.username:
                     obj = {'user': self.user.username, 'username': username}
-                    self.tcp_socket.send('SEARCH', obj, logmessage % (self.user.username, username))
+                    self.tcp_socket.send('SEARCH', obj, logmessage % (
+                        self.user.username, username))
                 else:
                     print('> You can\'t search yourself')
                     resume = True
@@ -180,8 +184,14 @@ class Peer(Protocol):
             if self.user:
                 username = input(
                     '> Enter the username of the user you want to chat: ')
-                obj = {'username': username}
-                self.tcp_socket.send('CHATREQUESTREG', obj, logmessage % (self.user.username, username))
+                if username == self.user.username:
+                    print('> You can\'t enter your own name')
+                    resume = True
+                else:
+                    obj = {'username': username}
+                    logmessage = Protocol.logmessages['REQUEST']['CHATREQUESTREG']['client']
+                    self.tcp_socket.send('CHATREQUESTREG', obj, logmessage % (
+                        self.user.username, username))
             else:
                 print('> To send a chat request you should be signed in')
                 resume = True
@@ -204,7 +214,8 @@ class PeerServer(Protocol):
                 with lock:
                     chat = False
                     resume = True
-                obj = {'msg': f'{self.user.username} closed chat connection'}
+                obj = {'msg': f'{self.user.username} closed chat connection',
+                       'username': self.user.username}
                 self.chat_socket.send('REJECT', obj)
                 self.chat_socket = None
                 self.user.busy = False
@@ -331,11 +342,19 @@ class PeerServer(Protocol):
                         sys.stdout.flush()
 
             except IOError as e:
+                global chat_end
                 if e.errno == errno.EBADF:
+                    if chat:
+                        print('Can\'t connect to peer')
+                        print(
+                            '> Type operation that you want to make: ', end='')
+                        sys.stdout.flush()
                     with lock:
                         resume = True
                         chat = False
-                        sys.exit()
+                    self.chat_socket = None
+                    self.user.busy = False
+                    sys.exit()
 
             except Exception as e:
                 print(e)
@@ -370,7 +389,7 @@ def main():
             if user_input not in Protocol.REQUEST_HEADERS and not chat_request:
                 print('Invalid operation')
                 continue
-            else:
+            elif not chat_request:
                 peer.make_request(user_input)
         if chat:
             peer.peer_server.chat()
