@@ -123,17 +123,14 @@ class Registry:
                
     def multi_chat_request(self, packet_data, client_socket: TCP_Socket):
         usernames = packet_data['usernames']
-        username_list = usernames.split()
+        online_users_list = self.db.search_all_peers(usernames)
         with Registry.lock:
-            for username in username_list:
-                try:
-                    chat_address = self.db.chat_address(username)
-                    obj = {'request': 'CHATREQUESTREG', 'msg': 'User found',
-                        'address': chat_address}
-                    client_socket.send('OK', obj)
-                except UserNotExistsException:
-                    obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found'}
-                    client_socket.send('NOTFOUND', obj)     
+            try:
+                obj = {'request': 'MULTICHATREQUESTREG', 'list': online_users_list}
+                client_socket.send('MULTIOK', obj)
+            except UserNotExistsException:
+                obj = {'request': 'MULTICHATREQUESTREG', 'msg': 'User not found'}
+                client_socket.send('NOTFOUND', obj)     
            
 
     def listen_tcp(self):
