@@ -64,7 +64,7 @@ class Registry:
                 self.db.register(**user.__dict__)
                 Registry.online_clients.append(user)
                 obj = {'user': user, 'request': 'REGISTER',
-                       'msg': 'The registration is complete', 'username' : user.username}
+                       'msg': 'The registration is complete'}
                 client_socket.send('OK', obj)
             except UserAlreadyExistsException:
                 obj = {'request': 'REGISTER',
@@ -86,7 +86,7 @@ class Registry:
                 else:
                     Registry.online_clients.append(user)
                     obj = {'user': user, 'request': 'LOGIN',
-                           'msg': 'Login successful', 'username': user.username}
+                           'msg': 'Login successful'}
                     client_socket.send('OK', obj)
             except WrongPasswordException:
                 obj = {'request': 'LOGIN',

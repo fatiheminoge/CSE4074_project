@@ -1,9 +1,9 @@
-from common.protocol import Protocol
-from util import *
 import socket
 import pickle
 import logging
 import inspect
+from protocol import Protocol
+from util import *
 
 logging.basicConfig(filename="logfile.log",
                     format='%(asctime)s — %(levelname)s — %(CALLER)s — %(message)s',

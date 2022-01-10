@@ -12,8 +12,8 @@ port_list = range(5000, 6000, 42)
 
 lock = threading.Lock()
 # getting local ip automatically
-SERVER = socket.gethostbyname(socket.gethostname())
-IP = socket.gethostbyname(socket.gethostname())
+SERVER = socket.gethostbyname('0.0.0.0')
+IP = socket.gethostbyname('0.0.0.0')
 TCP_ADDR = (SERVER, Protocol.TCP_PORT)
 UDP_ADDR = (SERVER, Protocol.UDP_PORT)
 
@@ -79,13 +79,16 @@ class Peer(Protocol):
                     message = packet_data['msg'] if packet_data['msg'] else ''
 
                     if request == 'LOGIN' or request == 'REGISTER':
+                        username = None
                         if packet_header == 'OK':
                             user = packet_data['user']
                             self.user = user
                             self.peer_server.user = user
+                            username = user.username
 
+                        username = username if username else packet_data['username']
                         self.tcp_socket.log(logmessage %
-                                            (packet_data['username'], message))
+                                            (username, message))
                         print(message)
                         resume = True
                     elif request == 'LOGOUT':
@@ -142,7 +145,7 @@ class Peer(Protocol):
                 obj = {'username': self.user.username}
                 logmessage = Protocol.logmessages['REQUEST']['HELLO']['client'] % self.user.username
                 self.udp_socket.send('HELLO', obj, logmessage)
-                time.sleep(60)
+                time.sleep(6)
 
     def make_request(self, header):
         global resume

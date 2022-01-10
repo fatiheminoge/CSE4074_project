@@ -9,7 +9,7 @@ logging.basicConfig(filename="logfile.log",
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from common.protocol import Protocol
+from protocol import Protocol
 from util import *
 
 class TCP_Socket(Protocol):
