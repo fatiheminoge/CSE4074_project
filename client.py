@@ -12,8 +12,8 @@ port_list = range(5000, 6000, 42)
 
 lock = threading.Lock()
 # getting local ip automatically
-SERVER = socket.gethostbyname('0.0.0.0')
-IP = socket.gethostbyname('0.0.0.0')
+SERVER = socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname(socket.gethostname())
 TCP_ADDR = (SERVER, Protocol.TCP_PORT)
 UDP_ADDR = (SERVER, Protocol.UDP_PORT)
 
@@ -21,7 +21,6 @@ tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcp_sock.connect(TCP_ADDR)
 
 chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-chat_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 for port in port_list:
     try:
@@ -113,7 +112,7 @@ class Peer(Protocol):
                             self.user.username, packet_data['username']))
                         if packet_header == 'OK':
                             user_address = packet_data['address']
-                            self.peer_server.peer_address = user_address
+                            self.peer_server.peer_address = (IP, user_address[1])
                             self.peer_server.send_chat_request(
                                 packet_data['username'])
                         else:
@@ -232,6 +231,7 @@ class PeerServer(Protocol):
     def send_chat_request(self, peer_name):
         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         chat_sock.connect(self.peer_address)
+        print(self.peer_address)
         self.chat_socket = TCP_Socket(
             socket=chat_sock, address=chat_sock.getsockname())
         obj = {'username': self.user.username, 'request': 'CHATREQUEST',
