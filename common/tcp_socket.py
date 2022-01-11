@@ -2,7 +2,7 @@ from common.our_sock import Socket
 from util import *
 import socket
 import pickle
-
+import inspect
 
 class TCP_Socket(Socket):
 
@@ -34,6 +34,10 @@ class TCP_Socket(Socket):
         packet_data = pickle.loads(packet_data)
         return packet_header, packet_data
 
-    def send(self, header, message):
+    def send(self, header, message, logmessage = None):
         message = self.create_message(header, message)
+        if logmessage:
+            caller_method = inspect.currentframe().f_back.f_code.co_name
+            caller_class = inspect.currentframe().f_back.f_locals["self"].__class__.__name__
+            self.log(logmessage, f'{caller_class}->{caller_method}')
         self.socket.send(message)

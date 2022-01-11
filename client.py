@@ -218,7 +218,9 @@ class PeerServer(Socket):
         while multiple_chat:
             message = input('> ')
             with lock:
-                for peer_username, peer_socket in enumerate(self.chat_sockets):
+                for peer_username, peer_socket in self.chat_sockets.items():
+                    if peer_socket == None:
+                        continue
                     if message == 'exit':
                         obj = {'msg' : f'{self.user.username} is closed connection'}
                         self.chat_sockets = {}
@@ -266,20 +268,16 @@ class PeerServer(Socket):
                 temp_socket.send('NEWPEER',new_peer)
 
     def receive_packet(self, client_socket: TCP_Socket):
-        global chat
         global resume
         resume = False
-        global loop
+        global chat
         global multiple_chat
         while   loop:
             try:
-                
                 packet_header, packet_data = client_socket.receive_message()
                 with lock:
                     if packet_header == 'NEWPEER':
                         new_peer = packet_data['new_peer']
-                        self.current_peers_information.append(new_peer)
-                        self.multiple_chat_peers.append(new_peer)
                         temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         temp_sock.connect(new_peer['peer_address'])
                         temp_socket = TCP_Socket(socket=temp_sock, address=temp_sock.getsockname())
@@ -322,42 +320,45 @@ class PeerServer(Socket):
                         chat_socket_address = packet_data['address']
                         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         chat_sock.connect(chat_socket_address)
-                        temp = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
-                        self.chat_socket = temp
+                        self.chat_socket = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
+                      
                         if self.user.busy:
                                 obj = {
                                     'msg': 'User is currently chatting with another person','peer_username':packet_data['peer_username']}
                                 resume = True
+                                multiple_chat = False
                                 self.chat_socket.send('MULTIBUSY', obj)
+
                         else:
                                 #ar = {'info':self.current_peers_information,'peer_address':address,'peer_username':obj['username'],'username': self.user.username, 'request': 'MULTICHATREQUEST', 'address' : ''}
               
                             print(f'\nUser {owner_username} invites you to multiple chat with all listed users [Y/N]: ', end=' ')
                             accept = input().lower()
-                             #TODO
+                            while accept != 'y' and accept != 'n': 
+                                accept = input('Invalid option enter [Y/N]: ').lower()
+
+                            accept = True if accept == 'y' else False
                             if accept:
+                                new_peer = {'peer_username':packet_data['peer_username'], 'peer_address':packet_data['peer_address']}
+                                obj = {
+                                'msg': f'{self.user.username} accepted to chat', 'new_peer' : new_peer}
+                                self.chat_socket.send('MULTIOK', obj)
+                                temp = self.chat_socket
                                 self.chat_sockets[owner_username] = temp
-                                self.multiple_chat_peers.append({'username':owner_username, 'address':chat_socket_address})
+                                
                                 for info in packet_data['info']:
-                                    self.multiple_chat_peers.append(info)
-                                    self.current_peers_information.append(info)
                                     temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                                     temp_sock.connect(info['peer_address'])
                                     temp_socket = TCP_Socket(socket=temp_sock, address=temp_sock.getsockname())
                                     self.chat_sockets[info['peer_username']] = temp_socket
-    
-                                    
-                                self.user.busy = True
-                                new_peer = {'peer_username':packet_data['peer_username'], 'peer_address':packet_data['peer_address']}
-                                obj = {
-                                    'msg': f'{self.user.username} accepted to chat', 'new_peer' : new_peer}
                                 chat = True
                                 multiple_chat = True
-                                self.chat_socket.send('MULTIOK', obj)
+                                
                             else:
                                 obj = {
                                     'msg': f'{self.user.username} rejected to chat','peer_username':packet_data['peer_username']}
                                 resume = True
+                                multiple_chat = False
                                 self.chat_socket.send('MULTIREJECT', obj)
 
                                        
@@ -397,6 +398,7 @@ class PeerServer(Socket):
                         message = packet_data['msg']
                         print(f'{message}')
                         print('> ', end='')
+                        sys.stdout.flush()
 
             except IOError as e:
                 if e.errno == errno.EBADF:
@@ -437,7 +439,7 @@ def main():
                 continue
             else:
                 peer.make_request(header)
-        if chat and multiple_chat:
+        elif chat and multiple_chat:
             peer.peer_server.multi_chat()        
         elif chat:
             peer.peer_server.chat()
