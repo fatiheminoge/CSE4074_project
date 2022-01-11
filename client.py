@@ -40,6 +40,7 @@ chat_socket = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
 resume = True
 loop = True
 chat = False
+multi_chat = False
 
 user_input = None
 chat_request = False
@@ -63,10 +64,12 @@ class Peer(Protocol):
         self.user = None
         self.peer_server: PeerServer = peer_server
 
+
         tcp_thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.send_hello)
         udp_thread.start()
+
 
     def listen_tcp(self):
         global resume
@@ -117,8 +120,19 @@ class Peer(Protocol):
                             self.peer_server.send_chat_request(
                                 packet_data['username'])
                         else:
+                            message = packet_data['msg']
                             resume = True
                             print(message)
+
+                    elif request == 'MULTICHATREQREG':
+                        if packet_header == 'OK':
+                            self.peer_server.online_clients = packet_data['list']
+                            self.peer_server.send_multiple_chat_request()
+                        else:
+                            message = packet_data['msg']
+                            resume = True
+                            print(message)
+                            
 
             except OSError as e:
                 print('\nConnection to registry is closed forcely', end='n> ')
@@ -206,6 +220,41 @@ class PeerServer(Protocol):
         tcp_thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
 
+        self.online_clients = []
+        self.chat_sockets = {}
+        self.num_answers = 0
+
+    
+    def multichat(self):
+        global multi_chat
+        global resume
+        global chat_end
+
+        while multi_chat:
+            message = input('> ')
+            chat_end = message
+            if message == 'exit':
+                with lock:
+                    multi_chat = False
+                    resume = True
+                obj = {'msg': f'{self.user.username} closed chat connection',
+                       'username': self.user.username}
+                self.chat_socket.send('LEAVE', obj)
+                self.chat_socket = None
+                self.chat_sockets = {}
+                self.user.busy = False
+                chat_end = None
+                break
+
+            message = self.user.username + ">" + message
+            obj = {'msg': message, 'peer_name':self.user.username}
+            
+            for peer_name, peer_socket in enumerate(self.chat_sockets):
+                if peer_socket is not None and peer_name!=self.user.username:
+                    peer_socket.send('CHAT', obj)
+
+
+
     def chat(self):
         global chat
         global resume
@@ -241,16 +290,76 @@ class PeerServer(Protocol):
             self.user.username, peer_name)
         self.tcp_socket.log(logmessage)
 
+    def create_multiple_rchat_requests_threads(self, ls):
+        for obj in ls:
+            address = obj['chat_address']
+            ar = {'msg': 'a','info':self.current_peers_information,'peer_address':address,'peer_username':obj['username'],'username': self.user.username, 'request': 'MULTICHATREQUEST', 'address' : ''}  
+            self.send_multiple_chat_requests(ar)
+    
+
+    def send_multiple_chat_requests(self, ar):
+        address = ar['peer_address']
+        temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        temp_sock.connect(address)
+        temp_socket = TCP_Socket(
+                socket=temp_sock, address=temp_sock.getsockname())
+        self.chat_sockets[ar['peer_username']] = temp_socket       
+        ar['address'] = self.tcp_socket.socket.getsockname()       
+        temp_socket.send('MULTICHATREQ', ar)
+
+    def sendPeerSockets(self):
+        global multi_chat
+        global resume
+        accepted_peer = False
+        for peer_name, peer_socket in enumerate(self.chat_sockets):
+             if peer_socket is not None and peer_name != self.user.username:
+                 obj = {'msg': 'chat peers info', 'peer_sockets': self.chat_sockets}
+                 peer_socket.send('PEERS', obj)
+                 accepted_peer = True
+        if accepted_peer:
+            multi_chat = True
+        else:
+            resume = True
+
     def receive_packet_chat_socket(self, client_socket: TCP_Socket):
         global chat
         global resume
         global user_input
         global chat_request
         resume = False
+        global multi_chat
         while True:
             try:
                 packet_header, packet_data = client_socket.receive_message()
                 with lock:
+                    if packet_header == 'MULTICHATREQ':
+                        chat_socket_address = packet_data['address']
+                        chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        chat_sock.connect(chat_socket_address)
+                        chat_socket= TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
+                        username_socket = packet_data['username']
+
+                        print( f'\nUser {username_socket} wants to chat with you [Y/N]: ', end='')
+                        user_input = None
+                        accept = user_input
+                        answers = ['y', 'n']
+                        while accept not in answers:
+                            if not user_input:
+                                continue
+                            elif user_input and not accept:
+                                accept = user_input.lower()
+                            else:
+                                accept = input(
+                                    'Invalid option enter [Y/N]: ').lower()
+
+                        accept = True if accept == 'y' else False
+
+                        if accept:
+                            self.chat_sockets[username_socket] = chat_socket
+                            obj = {'msg': f'{self.user.username} accepted to chat', 'username': self.user.username}
+                            self.chat_sockets[username_socket].send('MULTIOK',obj)
+
+
                     if packet_header == 'CHATREQUEST':
                         chat_request = True
                         chat_socket_address = packet_data['address']
@@ -312,8 +421,19 @@ class PeerServer(Protocol):
                         logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client']['CHAT']
                         logmessage = logmessage % (
                             self.user.username, peer_name)
-
                         message = packet_data['msg']
+
+                        if packet_header == 'MULTIOK':
+                            self.num_answers += 1
+                            if self.num_answers == len(self.chat_sockets):
+                                 self.sendPeerSockets()
+                
+                        if packet_header == 'MULTIREJECT':
+                            self.num_answers += 1
+                            self.chat_sockets[peer_name] = None
+                            if self.num_answers == len(self.chat_sockets):
+                                self.sendPeerSockets()
+
                         if packet_header == 'OK':
                             self.user.busy = True
                             self.user.peer_name = peer_name
@@ -343,6 +463,19 @@ class PeerServer(Protocol):
                         print(f'{self.user.peer_name}: {message}')
                         print('> ', end='')
                         sys.stdout.flush()
+
+                    elif packet_header == 'MULTICHAT':
+                         message = packet_data['msg']
+                         print(message)
+                         print('> ', end='')
+                         sys.stdout.flush()
+                    elif packet_header == 'PEERS':
+                        peer_sockets = packet_data['peer_sockets']
+                        for peer_name, peer_socket in enumerate(peer_sockets):
+                            if peer_socket is not None and peer_name != self.user.username:
+                                self.chat_sockets[peer_name] = peer_socket
+                        multi_chat = True        
+                              
 
             except IOError as e:
                 global chat_end
@@ -396,6 +529,8 @@ def main():
                 peer.make_request(user_input)
         if chat:
             peer.peer_server.chat()
+        elif multi_chat:
+            peer.peer_server.multichat()    
     sys.exit()
 
 

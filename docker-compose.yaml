@@ -1,5 +1,5 @@
 services:
-  postgres-db: 
+  postgres-db:
     image: postgres:latest
     environment:
       - POSTGRES_USER=postgres
@@ -8,7 +8,7 @@ services:
       - 5432:5432
     healthcheck:
       test: pg_isready -U postgres
-  
+
   registry:
     build: .
     container_name: registry
@@ -17,7 +17,6 @@ services:
       - "2424:2424/tcp"
       - "4242:4242/udp"
     depends_on:
-      postgres-db:
-        condition: service_healthy
+      - postgres-db
     links:
       - postgres-db

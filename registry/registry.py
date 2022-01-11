@@ -142,6 +142,18 @@ class Registry:
                 obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found', 'username': username}
                 client_socket.send('NOTFOUND', obj)
 
+    def multi_chat_request(self, packet_data, client_socket: TCP_Socket):
+        usernames = packet_data['usernames']
+        online_users_list = self.db.search_all_peers(usernames)
+        with Registry.lock:
+            try:
+                obj = {'request': 'MULTICHATREQUESTREG', 'list': online_users_list}
+                client_socket.send('OK', obj)
+            except UserNotExistsException:
+                obj = {'request': 'MULTICHATREQUESTREG', 'msg': 'User not found'}
+                client_socket.send('NOTFOUND', obj)     
+            
+
     def listen_tcp(self):
         self.tcp_socket.socket.listen()
         print(f"[LISTENING] Server is listening on {TCP_ADDR}")
@@ -177,6 +189,9 @@ class Registry:
                 elif packet_header == 'CHATREQUESTREG':
                     self.chat_request(packet_data, client_socket)
                     self.tcp_socket.log(logmessage % username)
+                elif packet_header == 'MULTICHATREQREG':
+                    self.multi_chat_request(packet_data, client_socket)    
+
                     
 
             except IOError as e:
