@@ -46,7 +46,8 @@ class Protocol:
                                 'REGISTER': 'User: %s, couldn\'t registered because %s',
                                 'LOGIN': 'User: %s, couldn\'t logged in because %s',
                                 'LOGOUT': 'User: %s, couldn\'t logged out because %s',
-                                'CHAT': 'User: %s, rejected to chat with %s'
+                                'CHAT': 'User: %s, rejected to chat with %s',
+                                'CHATREQUEST': 'User: %s, rejected to chat with %s'
                             }
                     },
                 'BUSY': {

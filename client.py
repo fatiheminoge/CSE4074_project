@@ -302,6 +302,7 @@ class PeerServer(Protocol):
                                 self.chat_socket.send('REJECT', obj)
                                 logmessage = Protocol.logmessages['RESPONSE']['REJECT']['client'][packet_header] % (
                                     self.user.username, username)
+                                print('Sa')
                                 self.tcp_socket.log(logmessage)
 
                             chat_request = False
