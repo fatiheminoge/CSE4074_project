@@ -74,13 +74,14 @@ class Database:
     def register(self, **args):
         try:
             select_statement = user_table.select().where(user_table.c.username == args['username'])
+            print(args)
             user = self.conn.execute(select_statement).fetchone()
             if user is None:
                 insert_statement = user_table.insert().values(**args)
                 self.conn.execute(insert_statement)
             else:
-                raise IntegrityError
-        except IntegrityError:
+                raise Exception
+        except Exception:
             raise UserAlreadyExistsException
 
     def login(self, username, password, address, chatport):
