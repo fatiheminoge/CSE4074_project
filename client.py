@@ -65,6 +65,7 @@ class Peer(Protocol):
         tcp_thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.send_hello)
+        udp_thread.start()
 
     def listen_tcp(self):
         global resume
