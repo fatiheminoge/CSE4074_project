@@ -77,13 +77,13 @@ class Registry:
         chatport = packet_data['chatport']
         with Registry.lock:
             try:
-                user = User(**self.db.login(username, password,
-                                            client_socket.address, chatport))
-                if check_user(Registry.online_clients, user.username):
+                if check_user(Registry.online_clients, username):
                     obj = {
                         'request': 'LOGIN', 'msg': 'User is logged in another instance', 'username': username}
                     client_socket.send('REJECT', obj)
                 else:
+                    user = User(**self.db.login(username, password,
+                            client_socket.address, chatport))
                     Registry.online_clients.append(user)
                     obj = {'user': user, 'request': 'LOGIN',
                            'msg': 'Login successful'}
