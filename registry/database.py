@@ -73,8 +73,13 @@ class Database:
 
     def register(self, **args):
         try:
-            insert_statement = user_table.insert().values(**args)
-            self.conn.execute(insert_statement)
+            select_statement = user_table.select().where(user_table.c.username == args['username'])
+            user = self.conn.execute(select_statement).fetchone()
+            if user is None:
+                insert_statement = user_table.insert().values(**args)
+                self.conn.execute(insert_statement)
+            else:
+                raise IntegrityError
         except IntegrityError:
             raise UserAlreadyExistsException
 
