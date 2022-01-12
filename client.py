@@ -16,6 +16,10 @@ SERVER = socket.gethostbyname(socket.gethostname())
 IP = socket.gethostbyname(socket.gethostname())
 TCP_ADDR = (SERVER, Protocol.TCP_PORT)
 UDP_ADDR = (SERVER, Protocol.UDP_PORT)
+MULTI_CHAT_ADDR = (SERVER,50007)
+
+multi_chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+multi_chat_sock.connect(MULTI_CHAT_ADDR)
 
 tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcp_sock.connect(TCP_ADDR)
@@ -35,10 +39,12 @@ udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 tcp_socket = TCP_Socket(socket=tcp_sock, address=tcp_sock.getsockname())
 udp_socket = UDP_Socket(socket=udp_sock, address=UDP_ADDR)
 chat_socket = TCP_Socket(socket=chat_sock, address=chat_sock.getsockname())
+multi_chat_socket = TCP_Socket(socket=multi_chat_sock, address=chat_sock.getsockname())
 
 resume = True
 loop = True
 chat = False
+multi_chat = False
 
 user_input = None
 chat_request = False
@@ -59,6 +65,7 @@ class Peer(Protocol):
         super().__init__()
         self.tcp_socket: TCP_Socket = tcp_socket
         self.udp_socket: UDP_Socket = udp_socket
+        self.multi_chat_socket: TCP_Socket = multi_chat_socket
         self.user = None
         self.peer_server: PeerServer = peer_server
 
@@ -66,18 +73,83 @@ class Peer(Protocol):
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.send_hello)
         udp_thread.start()
+        self.multi_chat_thread = threading.Thread(target=self.listen_multi_chat)
+        self.multi_chat_thread.start()
+
+    def send_answer(self):
+        pass
+
+    def multi_chat(self):
+        global multi_chat
+        global resume
+        global chat_end
+   
+     
+        while multi_chat:
+            message = input('> ')
+            chat_end = message
+            if message == 'exit':
+                with lock:
+                    multi_chat = False
+                    obj = {'msg': f' closed chat connection',
+                        'username': self.peer_server.user.username}
+                    self.multi_chat_socket.send('EXIT', obj)
+                    multi_chat = False
+                    return
+
+            obj = {'msg': message, 'username': self.peer_server.user.username}
+            if self.multi_chat_socket:
+                self.multi_chat_socket.send('CHAT', obj)
+
+
+    def listen_multi_chat(self):
+        global multi_chat
+        while True:
+              
+            if multi_chat:
+                try:
+                    packet_header, packet_data = self.multi_chat_socket.receive_message()
+                    if  packet_header == 'CHAT': 
+                        username = packet_data['username']    
+                        msg =    packet_data['msg']  
+                        print(f'\n{username}>{msg}')
+                except IOError:
+                    print("exit")        
 
     def listen_tcp(self):
         global resume
+        global multi_chat
         while True:
             try:
                 packet_header, packet_data = self.tcp_socket.receive_message()
                 with lock:
                     request = packet_data['request']
-                    logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
                     message = packet_data['msg'] if packet_data['msg'] else ''
 
+
+                    if packet_header == 'MULTICHAT':
+                        resume = False
+                        username = packet_data['username']
+                        print(
+                            f'\nUser {username} wants to chat with you [Y/N]: ', end='')
+                        accept = input().lower()
+                        answers = ['y', 'n']
+                        while accept not in answers:
+                            accept = input( 'Invalid option enter [Y/N]: ').lower()
+                        accept = True if accept == 'y' else False
+                        if accept:
+                            obj = {'username':self.peer_server.user.username,'msg':'join'}
+                            self.multi_chat_socket.send('JOIN',obj)
+                            multi_chat = True
+                        else:
+                            resume = True    
+
+                    if  packet_header == 'CHAT': 
+                        username = packet_data['username']    
+                        msg =    packet_data['msg']  
+                        print(f'\n{username}>{msg}')
                     if request == 'LOGIN' or request == 'REGISTER':
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
                         username = None
                         if packet_header == 'OK':
                             user = packet_data['user']
@@ -91,6 +163,7 @@ class Peer(Protocol):
                         print(message)
                         resume = True
                     elif request == 'LOGOUT':
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
                         if packet_header == 'OK':
                             name = self.user.username
                             self.user = None
@@ -99,6 +172,7 @@ class Peer(Protocol):
                         print(message)
                         resume = True
                     elif request == 'SEARCH':
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
                         if packet_header == 'OK':
                             user_address = packet_data['address']
                             print(user_address)
@@ -108,6 +182,7 @@ class Peer(Protocol):
                         print(message)
                         resume = True
                     elif request == 'CHATREQUESTREG':
+                        logmessage = Protocol.logmessages['RESPONSE'][packet_header]['client'][request]
                         self.tcp_socket.log(logmessage % (
                             self.user.username, packet_data['username']))
                         if packet_header == 'OK':
@@ -149,6 +224,7 @@ class Peer(Protocol):
     def make_request(self, header):
         global resume
         resume = False
+        global multi_chat
         logmessage = Protocol.logmessages['REQUEST'][header]['client']
         if header == 'REGISTER' or header == 'LOGIN':
             if not self.user:
@@ -194,9 +270,22 @@ class Peer(Protocol):
                     logmessage = Protocol.logmessages['REQUEST']['CHATREQUESTREG']['client']
                     self.tcp_socket.send('CHATREQUESTREG', obj, logmessage % (
                         self.user.username, username))
+
             else:
                 print('> To send a chat request you should be signed in')
                 resume = True
+        elif header == 'CHATROOM':
+            if self.user:
+                username = input('> Enter the username of the user you want to chat: ')
+                usernames = username.split()
+                obj = {'username': self.user.username, 'users':usernames, 'msg':'multiple char req'}
+                self.tcp_socket.send(header, obj)
+                resume = False
+                multi_chat = True
+            else:
+                 print('You are not logged in')
+                 resume = True
+
 
 
 class PeerServer(Protocol):
@@ -228,6 +317,8 @@ class PeerServer(Protocol):
             if self.chat_socket:
                 self.chat_socket.send('CHAT', obj)
 
+                  
+
     def send_chat_request(self, peer_name):
         chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         chat_sock.connect(self.peer_address)
@@ -240,9 +331,11 @@ class PeerServer(Protocol):
         logmessage = Protocol.logmessages['REQUEST']['CHATREQUEST']['client'] % (
             self.user.username, peer_name)
         self.tcp_socket.log(logmessage)
+      
 
     def receive_packet_chat_socket(self, client_socket: TCP_Socket):
         global chat
+        global multi_chat
         global resume
         global user_input
         global chat_request
@@ -382,6 +475,7 @@ def main():
     peer_server = PeerServer(chat_socket=chat_socket)
     peer = Peer(tcp_socket=tcp_socket,
                 udp_socket=udp_socket, peer_server=peer_server)
+    global resume            
 
     while loop:
         if resume:
@@ -396,6 +490,9 @@ def main():
                 peer.make_request(user_input)
         if chat:
             peer.peer_server.chat()
+        if multi_chat:
+           peer.multi_chat()
+           resume = True
     sys.exit()
 
 

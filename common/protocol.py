@@ -1,10 +1,10 @@
 class Protocol:
     FORMAT = 'utf-8'
     REQUEST_HEADERS = [
-        'REGISTER', 'LOGIN', 'LOGOUT', 'HELLO', 'CHATREQUEST', 'SEARCH', 'CHATREQUESTREG', 'CHAT'
+        'REGISTER', 'LOGIN', 'LOGOUT', 'HELLO', 'CHATREQUEST', 'SEARCH', 'CHATREQUESTREG', 'CHAT', 'CHATROOM','MULTICHAT'
     ]
     RESPONSE_HEADERS = [
-        'OK', 'REJECT', 'BUSY', 'INVALID', 'NOTFOUND'
+        'OK', 'REJECT', 'BUSY', 'INVALID', 'NOTFOUND','JOIN','EXIT'
     ]
     HEADER_LENGTH = 16
     UDP_PACKET_SIZE = 1024
@@ -20,7 +20,11 @@ class Protocol:
                 'CHATREQUEST': {'client': 'User: %s sent a CHATREQUEST to user %s'},
                 'SEARCH': {'registry': 'User: %s sent a SEARCH request for user %s', 'client': 'User: %s made a SEARCH request for the user: %s to registry'},
                 'CHATREQUESTREG': {'registry': 'Received CHATREQUESTREG request from user: %s', 'client': 'User: %s made a CHATREQUESTREG for the user: %s to registry'},
-                'CHAT': {'client': 'User: %s sent a message to user: %s'}
+                'CHAT': {'client': 'User: %s sent a message to user: %s'},
+                'MULTICHAT': {'client': 'User: %s sent a message to user: %s'},
+                'JOIN': {'client': 'User: %s sent a message to user: %s'},
+                'EXIT': {'client': 'User: %s sent a message to user: %s'},
+                'CHATROOM': {'registry': 'Received CHATROOM request from user: %s', 'client': 'Client %s made a CHATROOM request to registry'}
             },
 
         'RESPONSE':
@@ -35,7 +39,11 @@ class Protocol:
                             'SEARCH': 'User: %s, successfully found the user %s',
                             'CHATREQUESTREG': 'User: %s, successfully found the user %s',
                             'CHATREQUEST': 'User: Chat with the user %s is accepted %s',
-                            'CHAT': 'User: %s, accepted to chat with %s'
+                            'CHAT': 'User: %s, accepted to chat with %s',
+                            'MULTICHAT': 'User: %s, successfully found the user %s',
+                            'JOIN': 'User: Chat with the user %s is accepted %s',
+                            'EXIT': 'User: %s, accepted to chat with %s',
+                            'CHATROOM': 'User: %s, accepted to chat with %s'
                         }
                     },
                 'REJECT':
@@ -47,14 +55,20 @@ class Protocol:
                                 'LOGIN': 'User: %s, couldn\'t logged in because %s',
                                 'LOGOUT': 'User: %s, couldn\'t logged out because %s',
                                 'CHAT': 'User: %s, rejected to chat with %s',
-                                'CHATREQUEST': 'User: %s, rejected to chat with %s'
+                                'CHATREQUEST': 'User: %s, rejected to chat with %s',
+                                'JOIN': 'User: Chat with the user %s is accepted %s',
+                                'EXIT': 'User: %s, accepted to chat with %s',
+                                'CHATROOM': 'User: %s, accepted to chat with %s'
                             }
                     },
                 'BUSY': {
                     'registry': '',
                         'client':
                         {
-                            'CHAT': 'User: %s, user %s is busy'
+                            'CHAT': 'User: %s, user %s is busy',
+                            'JOIN': 'User: Chat with the user %s is accepted %s',
+                            'EXIT': 'User: %s, accepted to chat with %s',
+                            'CHATROOM': 'User: %s, accepted to chat with %s'
                         }
                 },
                 'INVALID': {'registry': '', 'client': ''},
@@ -63,7 +77,10 @@ class Protocol:
                         'registry': '',
                         'client': {
                             'SEARCH': 'User: %s, couldn\'t be found %s',
-                            'CHATREQUESTREG': 'User: %s, couldn\'t be found %s'
+                            'CHATREQUESTREG': 'User: %s, couldn\'t be found %s',
+                            'JOIN': 'User: Chat with the user %s is accepted %s',
+                            'EXIT': 'User: %s, accepted to chat with %s',
+                            'CHATROOM': 'User: %s, accepted to chat with %s'
                         }
                         }
             },

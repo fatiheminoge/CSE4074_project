@@ -18,6 +18,7 @@ from database import Database
 IP = socket.gethostbyname(socket.gethostname())
 TCP_ADDR = (IP, TCP_Socket.TCP_PORT)
 UDP_ADDR = (IP, UDP_Socket.UDP_PORT)
+CHAT_ADDR = (IP, 50007)
 
 
 tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -27,24 +28,36 @@ tcp_sock.bind(TCP_ADDR)
 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 udp_sock.bind(UDP_ADDR)
 
+chat_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+chat_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+chat_sock.bind(CHAT_ADDR)
+chat_sock.listen()
+
+
 tcp_socket = TCP_Socket(socket=tcp_sock, address=TCP_ADDR)
 udp_socket = UDP_Socket(socket=udp_sock, address=UDP_ADDR)
+chat_socket = TCP_Socket(socket=chat_sock, address=CHAT_ADDR)
 
 
 class Registry:
     online_clients = []
+    socket_list = {}
     lock = threading.Lock()
     tcp_socket: TCP_Socket = None
     udp_socket: UDP_Socket = None
+    chat_socket: TCP_Socket = None
 
-    def __init__(self, tcp_socket, udp_socket):
+    def __init__(self, tcp_socket, udp_socket,chat_socket):
         Registry.tcp_socket = tcp_socket
-        Registry.udp_socket = udp_socket        
+        Registry.udp_socket = udp_socket
+        Registry.chat_socket = chat_socket       
         self.db = Database()
         tcp_thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
         udp_thread = threading.Thread(target=self.listen_udp)
         udp_thread.start()
+
+
         self.db.set_offline()
         
         with open('logfile.log', 'w'):
@@ -142,6 +155,52 @@ class Registry:
                 obj = {'request': 'CHATREQUESTREG', 'msg': 'User not found', 'username': username}
                 client_socket.send('NOTFOUND', obj)
 
+    def chat_room(self, packet_data, client_socket: TCP_Socket):
+        requested_users = packet_data['users']
+        online_users_info = self.db.search_all_peers2(requested_users)
+        username = packet_data['username']
+        with Registry.lock:
+            for online_user in online_users_info:
+                obj = {'request': 'MULTICHAT', 'msg': 'Group chatting...', 'username':username}
+                socket =  self.socket_list[online_user['username']]
+                socket.send('MULTICHAT', obj)
+
+
+    
+    def listen_chat(self, username, client_socket):
+        chat_room_clients = {username:client_socket}
+        self.chat_socket.socket.listen()
+        print(f"[LISTENING] Server is listening on {CHAT_ADDR}")
+        while True:
+            client_socket, client_address = self.chat_socket.socket.accept()
+            client_socket = TCP_Socket( socket=client_socket, address=client_address)
+            # Create new thread for every incoming tcp connection
+            client_thread = threading.Thread(
+                target=self.receive_packet_chat, args=(client_socket,chat_room_clients))
+
+            client_thread.start()
+
+
+    def receive_packet_chat(self, client_socket: TCP_Socket, chat_room_clients):
+        connected=True
+        while connected:
+            packet_header, packet_data = client_socket.receive_message()
+            username = packet_data['username']
+            chat_room_clients[username] = client_socket
+            if packet_header == 'JOIN':
+                chat_room_clients[username] = client_socket
+            elif packet_header == 'EXIT':
+                chat_room_clients[username] = None
+                connected = False
+            elif packet_header == 'CHAT':
+                msg= packet_data['msg']
+                for client_username, sock in chat_room_clients.items():
+                    if client_username!= username and sock is not None:
+                        obj = {'username':username, 'msg':msg, 'request':'req'}
+                        sock.send('CHAT', obj)
+
+    
+
     def listen_tcp(self):
         self.tcp_socket.socket.listen()
         print(f"[LISTENING] Server is listening on {TCP_ADDR}")
@@ -160,7 +219,9 @@ class Registry:
         while connected:
             try:
                 packet_header, packet_data = client_socket.receive_message()
+                
                 username = packet_data['username']
+                self.socket_list[username] = client_socket
                 logmessage = Protocol.logmessages['REQUEST'][packet_header]['registry']
                 if packet_header == 'REGISTER':
                     self.register(packet_data, client_socket)
@@ -177,8 +238,10 @@ class Registry:
                 elif packet_header == 'CHATREQUESTREG':
                     self.chat_request(packet_data, client_socket)
                     self.tcp_socket.log(logmessage % username)
-                    
-
+                elif packet_header == 'CHATROOM':
+                    self.chat_room(packet_data, client_socket)  # done requests to clients
+                    chat_thread = threading.Thread(target=self.listen_chat, args=(username, client_socket))
+                    chat_thread.start()
             except IOError as e:
                 if e.errno == errno.EBADF:
                     print('Client socket is closed')
@@ -215,7 +278,7 @@ class Registry:
 
 
 def main():
-    Registry(tcp_socket=tcp_socket, udp_socket=udp_socket)
+    Registry(tcp_socket=tcp_socket, udp_socket=udp_socket, chat_socket = chat_socket)
 
 
 if __name__ == '__main__':
